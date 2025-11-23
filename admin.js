@@ -68,7 +68,7 @@ function showAddContributionForm() {
             </div>
             
             <div class="form-group">
-                <label for="contributionAmount">Amount ($) *</label>
+                <label for="contributionAmount">Amount (₹) *</label>
                 <input type="number" id="contributionAmount" step="0.01" min="0.01" required>
             </div>
             
@@ -143,7 +143,7 @@ function showAddLoanForm() {
             </div>
             
             <div class="form-group">
-                <label for="loanAmount">Loan Amount ($) *</label>
+                <label for="loanAmount">Loan Amount (₹) *</label>
                 <input type="number" id="loanAmount" step="0.01" min="0.01" required>
             </div>
             

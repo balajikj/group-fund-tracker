@@ -171,7 +171,7 @@ function displayTransactionsTable() {
 
 // Helper: Format currency
 function formatCurrency(amount) {
-    return '$' + amount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
+    return '₹' + amount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
 }
 
 // Helper: Format date
