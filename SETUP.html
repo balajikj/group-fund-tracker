@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup Guide - Group Fund Tracker</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        h1 { color: #2563eb; }
+        h2 { color: #1e293b; margin-top: 2rem; }
+        .step {
+            background: #f1f5f9;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 8px;
+            border-left: 4px solid #2563eb;
+        }
+        .warning {
+            background: #fef3c7;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid #f59e0b;
+            margin: 1rem 0;
+        }
+        .success {
+            background: #d1fae5;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid #10b981;
+            margin: 1rem 0;
+        }
+        code {
+            background: #1e293b;
+            color: #f1f5f9;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        .btn {
+            display: inline-block;
+            background: #2563eb;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            text-decoration: none;
+            border-radius: 6px;
+            margin-top: 1rem;
+        }
+        .btn:hover {
+            background: #1d4ed8;
+        }
+        ul { margin-left: 1.5rem; }
+        li { margin: 0.5rem 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Quick Setup Guide</h1>
+        <p>Follow these steps to get your Group Fund Tracker running in minutes!</p>
+
+        <div class="warning">
+            <strong>⚠️ Before You Begin:</strong>
+            <ul>
+                <li>You need a Google/Gmail account for Firebase</li>
+                <li>You need a GitHub account for hosting</li>
+                <li>This should take about 15-20 minutes</li>
+            </ul>
+        </div>
+
+        <h2>📋 Step 1: Firebase Setup (5 minutes)</h2>
+        <div class="step">
+            <strong>1.1 Create Firebase Project</strong>
+            <ul>
+                <li>Go to <a href="https://console.firebase.google.com/" target="_blank">Firebase Console</a></li>
+                <li>Click "Add project" or "Create a project"</li>
+                <li>Name it (e.g., "group-fund-tracker")</li>
+                <li>Disable Google Analytics (not needed)</li>
+                <li>Click "Create project"</li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <strong>1.2 Enable Firestore Database</strong>
+            <ul>
+                <li>In left menu: Build → Firestore Database</li>
+                <li>Click "Create database"</li>
+                <li>Select "Start in production mode"</li>
+                <li>Choose a location (closest to you)</li>
+                <li>Click "Enable"</li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <strong>1.3 Set Up Security Rules</strong>
+            <ul>
+                <li>In Firestore, click "Rules" tab</li>
+                <li>Copy content from <code>firestore.rules</code> file</li>
+                <li>Paste and click "Publish"</li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <strong>1.4 Enable Authentication</strong>
+            <ul>
+                <li>In left menu: Build → Authentication</li>
+                <li>Click "Get started"</li>
+                <li>Click "Email/Password"</li>
+                <li>Enable "Email/Password" (first toggle)</li>
+                <li>Click "Save"</li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <strong>1.5 Get Your Configuration</strong>
+            <ul>
+                <li>Click the ⚙️ gear icon → Project settings</li>
+                <li>Scroll to "Your apps" section</li>
+                <li>Click the web icon <code>&lt;/&gt;</code></li>
+                <li>Give it a nickname (e.g., "fund-tracker")</li>
+                <li>Click "Register app"</li>
+                <li><strong>Copy the firebaseConfig object</strong></li>
+                <li>Paste it into <code>firebase-config.js</code> (replace placeholder)</li>
+            </ul>
+        </div>
+
+        <h2>👤 Step 2: Create Admin User (2 minutes)</h2>
+        <div class="step">
+            <strong>2.1 Create User in Authentication</strong>
+            <ul>
+                <li>Go to Authentication → Users tab</li>
+                <li>Click "Add user"</li>
+                <li>Enter email and password</li>
+                <li>Click "Add user"</li>
+                <li><strong>Copy the User UID</strong> (long string)</li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <strong>2.2 Add User to Firestore</strong>
+            <ul>
+                <li>Go to Firestore Database → Data tab</li>
+                <li>Click "Start collection"</li>
+                <li>Collection ID: <code>members</code></li>
+                <li>Document ID: <strong>Paste the User UID</strong></li>
+                <li>Add fields:
+                    <ul>
+                        <li><code>name</code> (string): Your Name</li>
+                        <li><code>role</code> (string): Admin</li>
+                        <li><code>lifetimeContribution</code> (number): 0</li>
+                    </ul>
+                </li>
+                <li>Click "Save"</li>
+            </ul>
+        </div>
+
+        <h2>🌐 Step 3: Deploy to GitHub Pages (8 minutes)</h2>
+        <div class="step">
+            <strong>3.1 Create GitHub Repository</strong>
+            <ul>
+                <li>Go to <a href="https://github.com/new" target="_blank">GitHub - New Repository</a></li>
+                <li>Repository name: <code>group-fund-tracker</code></li>
+                <li>Make it <strong>Public</strong></li>
+                <li>Don't initialize with README</li>
+                <li>Click "Create repository"</li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <strong>3.2 Push Your Code</strong>
+            <p>Open terminal/command prompt in your project folder and run:</p>
+            <code style="display: block; padding: 1rem; white-space: pre;">git init
+git add .
+git commit -m "Initial commit"
+git branch -M main
+git remote add origin https://github.com/YOUR_USERNAME/group-fund-tracker.git
+git push -u origin main</code>
+            <p><small>Replace YOUR_USERNAME with your GitHub username</small></p>
+        </div>
+
+        <div class="step">
+            <strong>3.3 Enable GitHub Pages</strong>
+            <ul>
+                <li>In your repository, go to Settings</li>
+                <li>Scroll to "Pages" in left menu</li>
+                <li>Source: Deploy from a branch</li>
+                <li>Branch: <code>main</code> / <code>(root)</code></li>
+                <li>Click "Save"</li>
+                <li>Wait 1-2 minutes for deployment</li>
+                <li>Your URL: <code>https://YOUR_USERNAME.github.io/group-fund-tracker/</code></li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <strong>3.4 Authorize Domain in Firebase</strong>
+            <ul>
+                <li>Back to Firebase Console</li>
+                <li>Authentication → Settings → Authorized domains</li>
+                <li>Click "Add domain"</li>
+                <li>Enter: <code>YOUR_USERNAME.github.io</code></li>
+                <li>Click "Add"</li>
+            </ul>
+        </div>
+
+        <h2>✅ Step 4: Test Your Application (5 minutes)</h2>
+        <div class="step">
+            <ul>
+                <li>Open your GitHub Pages URL</li>
+                <li>Login with the Admin credentials you created</li>
+                <li>You should see the dashboard!</li>
+                <li>Try adding a test contribution</li>
+                <li>Check that the fund balance updates</li>
+            </ul>
+        </div>
+
+        <div class="success">
+            <strong>🎉 Congratulations!</strong>
+            <p>Your Group Fund Tracker is now live and running with:</p>
+            <ul>
+                <li>✅ Zero infrastructure cost</li>
+                <li>✅ Secure authentication</li>
+                <li>✅ Real-time database</li>
+                <li>✅ Role-based access control</li>
+            </ul>
+        </div>
+
+        <h2>📚 Next Steps</h2>
+        <ul>
+            <li>Add more members (repeat Step 2 for each member)</li>
+            <li>Set member roles to "CoAdmin" or "Member" as needed</li>
+            <li>Share the GitHub Pages URL with your group</li>
+            <li>Read <code>README.md</code> for detailed documentation</li>
+            <li>Check <code>DEPLOYMENT.md</code> for advanced configuration</li>
+        </ul>
+
+        <h2>🆘 Need Help?</h2>
+        <div class="warning">
+            <strong>Common Issues:</strong>
+            <ul>
+                <li><strong>Login fails:</strong> Check that you replaced Firebase config in firebase-config.js</li>
+                <li><strong>Permission denied:</strong> Verify Firestore rules are published and user exists in members collection</li>
+                <li><strong>Page not loading:</strong> Wait a few minutes after enabling GitHub Pages</li>
+                <li><strong>Can't see admin panel:</strong> Make sure role is "Admin" or "CoAdmin" (case-sensitive)</li>
+            </ul>
+        </div>
+
+        <a href="index.html" class="btn">Go to Application →</a>
+    </div>
+</body>
+</html>

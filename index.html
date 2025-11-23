@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Group Fund Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Login Page -->
+    <div id="loginPage" class="page">
+        <div class="login-container">
+            <h1>🏦 Group Fund Tracker</h1>
+            <p class="subtitle">Zero-Cost Serverless Fund Management</p>
+            
+            <div class="login-box">
+                <h2>Login</h2>
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Login</button>
+                </form>
+                <div id="loginError" class="error-message"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Page -->
+    <div id="dashboardPage" class="page hidden">
+        <header>
+            <div class="header-content">
+                <h1>Group Fund Tracker</h1>
+                <div class="user-info">
+                    <span id="userName">Welcome, User</span>
+                    <span id="userRole" class="role-badge"></span>
+                    <button id="logoutBtn" class="btn btn-secondary">Logout</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="dashboard">
+            <!-- Fund Status Overview -->
+            <section class="card">
+                <h2>💰 Common Fund Status</h2>
+                <div class="fund-metrics">
+                    <div class="metric">
+                        <div class="metric-label">Current Total Fund</div>
+                        <div class="metric-value" id="totalFund">$0.00</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Outstanding Loans</div>
+                        <div class="metric-value" id="outstandingLoans">$0.00</div>
+                    </div>
+                    <div class="metric highlight">
+                        <div class="metric-label">Available for Budgeting</div>
+                        <div class="metric-value" id="availableFund">$0.00</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Budget Breakdown -->
+            <section class="card">
+                <h2>📊 Budget Allocation</h2>
+                <div class="budget-breakdown">
+                    <div class="budget-item">
+                        <span class="budget-label">🚗 Travel Budget (10%)</span>
+                        <span class="budget-value" id="travelBudget">$0.00</span>
+                    </div>
+                    <div class="budget-item">
+                        <span class="budget-label">🏥 Medical Emergency (20%)</span>
+                        <span class="budget-value" id="medicalBudget">$0.00</span>
+                    </div>
+                    <div class="budget-item">
+                        <span class="budget-label">💵 Lending Fund (50%)</span>
+                        <span class="budget-value" id="lendingBudget">$0.00</span>
+                    </div>
+                    <div class="budget-item">
+                        <span class="budget-label">💼 Reserve (20%)</span>
+                        <span class="budget-value" id="reserveBudget">$0.00</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Personal Contribution -->
+            <section class="card">
+                <h2>👤 My Contribution</h2>
+                <div class="personal-stats">
+                    <div class="metric">
+                        <div class="metric-label">My Lifetime Contribution</div>
+                        <div class="metric-value" id="myContribution">$0.00</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Admin Actions (Only visible to Admin/CoAdmin) -->
+            <section id="adminPanel" class="card hidden">
+                <h2>⚙️ Admin Actions</h2>
+                <div class="admin-actions">
+                    <button id="addContributionBtn" class="btn btn-success">➕ Add Contribution</button>
+                    <button id="addLoanBtn" class="btn btn-warning">💸 Disburse Loan</button>
+                    <button id="recordReturnBtn" class="btn btn-info">✅ Record Loan Return</button>
+                </div>
+            </section>
+
+            <!-- Active Loans -->
+            <section class="card">
+                <h2>📋 Active Loans</h2>
+                <div class="table-container">
+                    <table id="loansTable">
+                        <thead>
+                            <tr>
+                                <th>Borrower</th>
+                                <th>Amount</th>
+                                <th>Borrowed Date</th>
+                                <th>Due Date</th>
+                                <th>Days Remaining</th>
+                            </tr>
+                        </thead>
+                        <tbody id="loansTableBody">
+                            <tr>
+                                <td colspan="5" class="no-data">No active loans</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Transaction History -->
+            <section class="card">
+                <h2>📜 Transaction History</h2>
+                <div class="table-container">
+                    <table id="transactionsTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Member</th>
+                                <th>Type</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactionsTableBody">
+                            <tr>
+                                <td colspan="4" class="no-data">No transactions yet</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal for Admin Forms -->
+    <div id="modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <!-- Application Scripts -->
+    <script src="firebase-config.js"></script>
+    <script src="auth.js"></script>
+    <script src="app.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>

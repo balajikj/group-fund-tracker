@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to get user role from members collection
+    function getUserRole() {
+      return get(/databases/$(database)/documents/members/$(request.auth.uid)).data.role;
+    }
+    
+    // Helper function to check if user is Admin or CoAdmin
+    function isAdminOrCoAdmin() {
+      return isAuthenticated() && 
+             (getUserRole() == 'Admin' || getUserRole() == 'CoAdmin');
+    }
+    
+    // Members Collection Rules
+    match /members/{memberId} {
+      // Everyone can read member data (to display names in transactions/loans)
+      allow read: if isAuthenticated();
+      
+      // Only Admin/CoAdmin can write member data
+      allow write: if isAdminOrCoAdmin();
+    }
+    
+    // Transactions Collection Rules
+    match /transactions/{transactionId} {
+      // Everyone can read transactions
+      allow read: if isAuthenticated();
+      
+      // Only Admin/CoAdmin can create/update/delete transactions
+      allow write: if isAdminOrCoAdmin();
+    }
+    
+    // Loans Collection Rules
+    match /loans/{loanId} {
+      // Everyone can read loan data
+      allow read: if isAuthenticated();
+      
+      // Only Admin/CoAdmin can create/update/delete loans
+      allow write: if isAdminOrCoAdmin();
+    }
+  }
+}
