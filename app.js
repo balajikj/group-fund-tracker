@@ -73,19 +73,19 @@ function calculateAndDisplayMetrics() {
         .filter(loan => loan.status === 'Outstanding')
         .reduce((sum, loan) => sum + loan.amount, 0);
     
-    // Calculate available fund for budgeting
-    const availableFund = totalFund - outstandingLoans;
+    // Calculate total amount (current fund + outstanding loans)
+    const totalAmount = totalFund + outstandingLoans;
     
-    // Budget allocations (10% travel, 20% medical, 50% lending, 20% reserve)
-    const travelBudget = availableFund * 0.10;
-    const medicalBudget = availableFund * 0.20;
-    const lendingBudget = availableFund * 0.50;
-    const reserveBudget = availableFund * 0.20;
+    // Budget allocations (10% travel, 20% medical, 50% lending, 20% reserve) - based on current total fund
+    const travelBudget = totalFund * 0.10;
+    const medicalBudget = totalFund * 0.20;
+    const lendingBudget = totalFund * 0.50;
+    const reserveBudget = totalFund * 0.20;
     
     // Display values
     document.getElementById('totalFund').textContent = formatCurrency(totalFund);
     document.getElementById('outstandingLoans').textContent = formatCurrency(outstandingLoans);
-    document.getElementById('availableFund').textContent = formatCurrency(availableFund);
+    document.getElementById('totalAmount').textContent = formatCurrency(totalAmount);
     
     document.getElementById('travelBudget').textContent = formatCurrency(travelBudget);
     document.getElementById('medicalBudget').textContent = formatCurrency(medicalBudget);
