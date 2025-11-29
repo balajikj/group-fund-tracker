@@ -18,13 +18,24 @@ service cloud.firestore {
              (getUserRole() == 'Admin' || getUserRole() == 'CoAdmin');
     }
     
+    // Helper function to check if user is Admin only
+    function isAdmin() {
+      return isAuthenticated() && getUserRole() == 'Admin';
+    }
+    
     // Members Collection Rules
     match /members/{memberId} {
       // Everyone can read member data (to display names in transactions/loans)
       allow read: if isAuthenticated();
       
-      // Only Admin/CoAdmin can write member data
-      allow write: if isAdminOrCoAdmin();
+      // Only Admin can create new members
+      allow create: if isAdmin();
+      
+      // Only Admin/CoAdmin can update member data
+      allow update: if isAdminOrCoAdmin();
+      
+      // Only Admin can delete members
+      allow delete: if isAdmin();
     }
     
     // Transactions Collection Rules

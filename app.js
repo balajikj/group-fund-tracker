@@ -17,6 +17,7 @@ async function loadDashboardData() {
         displayPersonalContribution();
         displayLoansTable();
         displayTransactionsTable();
+        displayMembersTable();
     } catch (error) {
         console.error('Error loading dashboard data:', error);
         alert('Error loading data. Please refresh the page.');
@@ -59,7 +60,8 @@ function calculateAndDisplayMetrics() {
     let totalFund = 0;
     
     transactions.forEach(txn => {
-        if (txn.type === 'Contribution-Monthly' || txn.type === 'Contribution-Quarterly') {
+        if (txn.type.startsWith('Contribution')) {
+            // All contribution types (Monthly, Quarterly, Initial)
             totalFund += txn.amount;
         } else if (txn.type === 'Loan-Disbursement') {
             totalFund -= Math.abs(txn.amount);
@@ -164,6 +166,32 @@ function displayTransactionsTable() {
                 <td>${memberName}</td>
                 <td><span class="transaction-type ${typeClass}">${formatTransactionType(txn.type)}</span></td>
                 <td class="${amountClass}">${amountPrefix}${formatCurrency(Math.abs(txn.amount))}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Display members table
+function displayMembersTable() {
+    const tbody = document.getElementById('membersTableBody');
+    
+    if (members.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="no-data">No members yet</td></tr>';
+        return;
+    }
+    
+    // Sort members by name
+    const sortedMembers = [...members].sort((a, b) => a.name.localeCompare(b.name));
+    
+    tbody.innerHTML = sortedMembers.map(member => {
+        const roleClass = member.role ? member.role.toLowerCase().replace(/\s+/g, '-') : 'member';
+        const contribution = member.lifetimeContribution || 0;
+        
+        return `
+            <tr>
+                <td>${member.name}</td>
+                <td><span class="role-badge ${roleClass}">${member.role || 'Member'}</span></td>
+                <td class="amount-positive">${formatCurrency(contribution)}</td>
             </tr>
         `;
     }).join('');

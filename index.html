@@ -108,6 +108,35 @@
                 </div>
             </section>
 
+            <!-- Admin Only Actions (Only visible to Admin) -->
+            <section id="adminOnlyPanel" class="card hidden">
+                <h2>🔐 Admin Only Actions</h2>
+                <div class="admin-actions">
+                    <button id="addMemberBtn" class="btn btn-primary">👤 Add Member</button>
+                </div>
+            </section>
+
+            <!-- Members List (Only visible to Admin/CoAdmin) -->
+            <section id="membersPanel" class="card hidden">
+                <h2>👥 Members List</h2>
+                <div class="table-container">
+                    <table id="membersTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Role</th>
+                                <th>Lifetime Contribution</th>
+                            </tr>
+                        </thead>
+                        <tbody id="membersTableBody">
+                            <tr>
+                                <td colspan="3" class="no-data">Loading members...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
             <!-- Active Loans -->
             <section class="card">
                 <h2>📋 Active Loans</h2>

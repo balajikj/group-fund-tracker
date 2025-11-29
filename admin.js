@@ -5,11 +5,16 @@ const modal = document.getElementById('modal');
 const modalBody = document.getElementById('modalBody');
 const closeModal = document.querySelector('.close');
 
+const addMemberBtn = document.getElementById('addMemberBtn');
 const addContributionBtn = document.getElementById('addContributionBtn');
 const addLoanBtn = document.getElementById('addLoanBtn');
 const recordReturnBtn = document.getElementById('recordReturnBtn');
 
 // Event Listeners
+if (addMemberBtn) {
+    addMemberBtn.addEventListener('click', showAddMemberForm);
+}
+
 if (addContributionBtn) {
     addContributionBtn.addEventListener('click', showAddContributionForm);
 }
@@ -44,6 +49,115 @@ function hideModal() {
     modal.classList.add('hidden');
     modal.classList.remove('active');
     modalBody.innerHTML = '';
+}
+
+// Show Add Member Form
+function showAddMemberForm() {
+    // Check if user is Admin
+    if (!window.isAdmin()) {
+        alert('Only Admin users can add new members.');
+        return;
+    }
+
+    modalBody.innerHTML = `
+        <h3>👤 Add New Member</h3>
+        <p style="color: #64748b; margin-bottom: 1.5rem; font-size: 0.9rem;">
+            ⚠️ <strong>Note:</strong> Create Firebase Authentication user first, then use that user's UID as the UUID here.
+        </p>
+        <form id="addMemberForm">
+            <div class="form-group">
+                <label for="memberUuid">UUID (Firebase Auth UID) *</label>
+                <input type="text" id="memberUuid" required placeholder="e.g., abc123xyz (Firebase Auth UID)">
+                <small style="color: #64748b; display: block; margin-top: 5px;">
+                    This will be used as the document ID. Get this from Firebase Authentication.
+                </small>
+            </div>
+            
+            <div class="form-group">
+                <label for="memberName">Name *</label>
+                <input type="text" id="memberName" required placeholder="Full Name">
+            </div>
+            
+            <div class="form-group">
+                <label for="memberRole">Role *</label>
+                <select id="memberRole" required>
+                    <option value="">Select Role</option>
+                    <option value="Admin">Admin</option>
+                    <option value="CoAdmin">CoAdmin</option>
+                    <option value="Member">Member</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="memberContribution">Lifetime Contribution (₹)</label>
+                <input type="number" id="memberContribution" step="0.01" min="0" value="0" required>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Add Member</button>
+            <div id="formMessage" class="error-message"></div>
+        </form>
+    `;
+    
+    document.getElementById('addMemberForm').addEventListener('submit', handleAddMember);
+    showModal();
+}
+
+// Handle Add Member
+async function handleAddMember(e) {
+    e.preventDefault();
+    
+    const uuid = document.getElementById('memberUuid').value.trim();
+    const name = document.getElementById('memberName').value.trim();
+    const role = document.getElementById('memberRole').value;
+    const lifetimeContribution = parseFloat(document.getElementById('memberContribution').value) || 0;
+    
+    try {
+        // Validate UUID is not empty
+        if (!uuid || uuid.length === 0) {
+            showFormError('UUID is required.');
+            return;
+        }
+        
+        // Check if UUID already exists in members collection
+        const existingDoc = await db.collection('members').doc(uuid).get();
+        if (existingDoc.exists) {
+            showFormError('A member with this UUID already exists. Please use a different UUID (Firebase Auth UID).');
+            return;
+        }
+        
+        // Create member document in Firestore with UUID as document ID
+        await db.collection('members').doc(uuid).set({
+            name: name,
+            role: role,
+            lifetimeContribution: lifetimeContribution,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        // If lifetime contribution > 0, create an initial transaction
+        if (lifetimeContribution > 0) {
+            await db.collection('transactions').add({
+                memberId: uuid,
+                type: 'Contribution-Initial',
+                amount: lifetimeContribution,
+                date: firebase.firestore.FieldValue.serverTimestamp(),
+                loanId: null
+            });
+        }
+        
+        // Refresh dashboard
+        if (typeof refreshDashboard === 'function') {
+            await refreshDashboard();
+        }
+        
+        hideModal();
+        const message = lifetimeContribution > 0 
+            ? `Member "${name}" added successfully with initial contribution of ₹${lifetimeContribution.toFixed(2)}`
+            : `Member "${name}" added successfully with UUID: ${uuid}`;
+        showSuccessMessage(message);
+    } catch (error) {
+        console.error('Error adding member:', error);
+        showFormError('Failed to add member: ' + error.message);
+    }
 }
 
 // Show Add Contribution Form

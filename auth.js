@@ -96,10 +96,22 @@ function showDashboard() {
     
     // Show/hide admin panel based on role
     const adminPanel = document.getElementById('adminPanel');
+    const adminOnlyPanel = document.getElementById('adminOnlyPanel');
+    const membersPanel = document.getElementById('membersPanel');
+    
     if (isAdminOrCoAdmin()) {
         adminPanel.classList.remove('hidden');
+        membersPanel.classList.remove('hidden');
     } else {
         adminPanel.classList.add('hidden');
+        membersPanel.classList.add('hidden');
+    }
+    
+    // Show Admin-only panel only for Admin role
+    if (isAdmin()) {
+        adminOnlyPanel.classList.remove('hidden');
+    } else {
+        adminOnlyPanel.classList.add('hidden');
     }
     
     // Load dashboard data
@@ -119,6 +131,11 @@ function showLogin() {
 function isAdminOrCoAdmin() {
     return currentUserData && 
            (currentUserData.role === 'Admin' || currentUserData.role === 'CoAdmin');
+}
+
+// Check if current user is Admin only
+function isAdmin() {
+    return currentUserData && currentUserData.role === 'Admin';
 }
 
 // Get current user data
@@ -143,4 +160,5 @@ function getErrorMessage(errorCode) {
 
 // Export functions for use in other modules
 window.isAdminOrCoAdmin = isAdminOrCoAdmin;
+window.isAdmin = isAdmin;
 window.getCurrentUser = getCurrentUser;
