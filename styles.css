@@ -389,6 +389,16 @@ tbody tr:hover {
     font-weight: 600;
 }
 
+.comment-cell {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-style: italic;
+    max-width: 250px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .due-soon {
     color: var(--warning-color);
     font-weight: 600;

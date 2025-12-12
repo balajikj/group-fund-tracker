@@ -191,6 +191,11 @@ function showAddContributionForm() {
                 <input type="date" id="contributionDate" required>
             </div>
             
+            <div class="form-group">
+                <label for="contributionComments">Comments</label>
+                <textarea id="contributionComments" rows="3" placeholder="Add any additional information or notes (optional)"></textarea>
+            </div>
+            
             <button type="submit" class="btn btn-success">Add Contribution</button>
             <div id="formMessage" class="error-message"></div>
         </form>
@@ -212,16 +217,24 @@ async function handleAddContribution(e) {
     const amount = parseFloat(document.getElementById('contributionAmount').value);
     const dateInput = document.getElementById('contributionDate').value;
     const date = firebase.firestore.Timestamp.fromDate(new Date(dateInput));
+    const comments = document.getElementById('contributionComments').value.trim();
     
     try {
         // Add transaction
-        await db.collection('transactions').add({
+        const transactionData = {
             memberId,
             type,
             amount,
             date,
             loanId: null
-        });
+        };
+        
+        // Add comments if provided
+        if (comments) {
+            transactionData.comments = comments;
+        }
+        
+        await db.collection('transactions').add(transactionData);
         
         // Update member's lifetime contribution
         const memberRef = db.collection('members').doc(memberId);

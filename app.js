@@ -148,7 +148,7 @@ function displayTransactionsTable() {
     const tbody = document.getElementById('transactionsTableBody');
     
     if (transactions.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="no-data">No transactions yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="no-data">No transactions yet</td></tr>';
         return;
     }
     
@@ -159,6 +159,7 @@ function displayTransactionsTable() {
         const typeClass = getTransactionTypeClass(txn.type);
         const amountClass = txn.type === 'Loan-Disbursement' ? 'amount-negative' : 'amount-positive';
         const amountPrefix = txn.type === 'Loan-Disbursement' ? '-' : '+';
+        const comments = txn.comments ? txn.comments : '-';
         
         return `
             <tr>
@@ -166,6 +167,7 @@ function displayTransactionsTable() {
                 <td>${memberName}</td>
                 <td><span class="transaction-type ${typeClass}">${formatTransactionType(txn.type)}</span></td>
                 <td class="${amountClass}">${amountPrefix}${formatCurrency(Math.abs(txn.amount))}</td>
+                <td class="comment-cell">${comments}</td>
             </tr>
         `;
     }).join('');
