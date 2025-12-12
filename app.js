@@ -65,15 +65,19 @@ function calculateAndDisplayMetrics() {
             totalFund += txn.amount;
         } else if (txn.type === 'Loan-Disbursement') {
             totalFund -= Math.abs(txn.amount);
-        } else if (txn.type === 'Loan-Return') {
+        } else if (txn.type === 'Loan-Return' || txn.type === 'Loan-PartialReturn') {
             totalFund += txn.amount;
         }
     });
     
-    // Calculate total outstanding loans
+    // Calculate total outstanding loans (remaining balance only)
     const outstandingLoans = loans
         .filter(loan => loan.status === 'Outstanding')
-        .reduce((sum, loan) => sum + loan.amount, 0);
+        .reduce((sum, loan) => {
+            const amountPaid = loan.amountPaid || 0;
+            const remaining = loan.amount - amountPaid;
+            return sum + remaining;
+        }, 0);
     
     // Calculate total amount (current fund + outstanding loans)
     const totalAmount = totalFund + outstandingLoans;
