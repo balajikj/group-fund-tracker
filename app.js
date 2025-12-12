@@ -112,7 +112,7 @@ function displayLoansTable() {
     const activeLoans = loans.filter(loan => loan.status === 'Outstanding');
     
     if (activeLoans.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="no-data">No active loans</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="no-data">No active loans</td></tr>';
         return;
     }
     
@@ -123,6 +123,9 @@ function displayLoansTable() {
         const borrowDate = formatDate(loan.borrowDate);
         const dueDate = formatDate(loan.dueDate);
         const daysRemaining = calculateDaysRemaining(loan.dueDate);
+        
+        const amountPaid = loan.amountPaid || 0;
+        const remaining = loan.amount - amountPaid;
         
         let daysClass = '';
         if (daysRemaining < 0) {
@@ -135,6 +138,8 @@ function displayLoansTable() {
             <tr>
                 <td>${borrowerName}</td>
                 <td class="amount-negative">${formatCurrency(loan.amount)}</td>
+                <td class="amount-positive">${formatCurrency(amountPaid)}</td>
+                <td class="amount-warning">${formatCurrency(remaining)}</td>
                 <td>${borrowDate}</td>
                 <td>${dueDate}</td>
                 <td class="${daysClass}">${formatDaysRemaining(daysRemaining)}</td>
@@ -142,7 +147,6 @@ function displayLoansTable() {
         `;
     }).join('');
 }
-
 // Display transactions table
 function displayTransactionsTable() {
     const tbody = document.getElementById('transactionsTableBody');
@@ -267,7 +271,7 @@ function getTransactionTypeClass(type) {
         return 'type-contribution';
     } else if (type === 'Loan-Disbursement') {
         return 'type-loan';
-    } else if (type === 'Loan-Return') {
+    } else if (type === 'Loan-Return' || type === 'Loan-PartialReturn') {
         return 'type-return';
     }
     return '';

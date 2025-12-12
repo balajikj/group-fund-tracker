@@ -369,14 +369,34 @@ function showRecordReturnForm() {
                     ${outstandingLoans.map(loan => {
                         const borrower = members.find(m => m.id === loan.borrowerId);
                         const borrowerName = borrower ? borrower.name : 'Unknown';
-                        return `<option value="${loan.id}">${borrowerName} - $${loan.amount.toFixed(2)}</option>`;
+                        const amountPaid = loan.amountPaid || 0;
+                        const remaining = loan.amount - amountPaid;
+                        return `<option value="${loan.id}" data-amount="${loan.amount}" data-paid="${amountPaid}">${borrowerName} - ₹${loan.amount.toFixed(2)} (Paid: ₹${amountPaid.toFixed(2)}, Remaining: ₹${remaining.toFixed(2)})</option>`;
                     }).join('')}
                 </select>
+            </div>
+            
+            <div class="form-group checkbox-group">
+                <label>
+                    <input type="checkbox" id="isPartialReturn">
+                    <span>Partial Payment</span>
+                </label>
+            </div>
+            
+            <div class="form-group" id="partialAmountGroup" style="display: none;">
+                <label for="partialAmount">Partial Return Amount (₹) *</label>
+                <input type="number" id="partialAmount" step="0.01" min="0.01">
+                <small id="remainingAmount" style="color: #64748b; display: block; margin-top: 5px;"></small>
             </div>
             
             <div class="form-group">
                 <label for="returnDate">Return Date *</label>
                 <input type="date" id="returnDate" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="returnComments">Comments</label>
+                <textarea id="returnComments" rows="3" placeholder="Add notes about this return (optional)"></textarea>
             </div>
             
             <button type="submit" class="btn btn-info">Record Return</button>
@@ -386,6 +406,38 @@ function showRecordReturnForm() {
     
     // Set default date to today
     document.getElementById('returnDate').valueAsDate = new Date();
+    
+    // Handle partial payment checkbox
+    const partialCheckbox = document.getElementById('isPartialReturn');
+    const partialAmountGroup = document.getElementById('partialAmountGroup');
+    const partialAmountInput = document.getElementById('partialAmount');
+    const loanSelect = document.getElementById('returnLoan');
+    const remainingAmountText = document.getElementById('remainingAmount');
+    
+    partialCheckbox.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            partialAmountGroup.style.display = 'block';
+            partialAmountInput.required = true;
+            updateRemainingAmount();
+        } else {
+            partialAmountGroup.style.display = 'none';
+            partialAmountInput.required = false;
+            partialAmountInput.value = '';
+        }
+    });
+    
+    loanSelect.addEventListener('change', updateRemainingAmount);
+    
+    function updateRemainingAmount() {
+        const selectedOption = loanSelect.options[loanSelect.selectedIndex];
+        if (selectedOption && selectedOption.value && partialCheckbox.checked) {
+            const totalAmount = parseFloat(selectedOption.dataset.amount);
+            const amountPaid = parseFloat(selectedOption.dataset.paid);
+            const remaining = totalAmount - amountPaid;
+            remainingAmountText.textContent = `Remaining balance: ₹${remaining.toFixed(2)}`;
+            partialAmountInput.max = remaining;
+        }
+    }
     
     document.getElementById('recordReturnForm').addEventListener('submit', handleRecordReturn);
     showModal();
@@ -398,31 +450,82 @@ async function handleRecordReturn(e) {
     const loanId = document.getElementById('returnLoan').value;
     const returnDateInput = document.getElementById('returnDate').value;
     const returnDate = firebase.firestore.Timestamp.fromDate(new Date(returnDateInput));
+    const isPartial = document.getElementById('isPartialReturn').checked;
+    const comments = document.getElementById('returnComments').value.trim();
     
     try {
         // Get loan details
         const loanDoc = await db.collection('loans').doc(loanId).get();
         const loan = loanDoc.data();
+        const currentAmountPaid = loan.amountPaid || 0;
         
-        // Update loan status
-        await db.collection('loans').doc(loanId).update({
-            status: 'Returned'
-        });
+        let returnAmount;
+        let newStatus;
+        let transactionType;
         
-        // Add transaction for loan return
-        await db.collection('transactions').add({
+        if (isPartial) {
+            // Partial payment
+            returnAmount = parseFloat(document.getElementById('partialAmount').value);
+            const remainingBalance = loan.amount - currentAmountPaid; // Remaining BEFORE this payment
+            const newAmountPaid = currentAmountPaid + returnAmount;
+            
+            // Validate partial amount
+            if (returnAmount <= 0) {
+                showFormError('Partial amount must be greater than 0.');
+                return;
+            }
+            
+            if (returnAmount > remainingBalance) {
+                showFormError(`Partial amount cannot exceed remaining balance of ₹${remainingBalance.toFixed(2)}.`);
+                return;
+            }
+            
+            // Update loan with partial payment
+            await db.collection('loans').doc(loanId).update({
+                amountPaid: newAmountPaid,
+                status: newAmountPaid >= loan.amount ? 'Returned' : 'Outstanding'
+            });
+            
+            transactionType = 'Loan-PartialReturn';
+            newStatus = newAmountPaid >= loan.amount ? 'Returned' : 'Outstanding';
+        } else {
+            // Full payment
+            returnAmount = loan.amount - currentAmountPaid;
+            
+            // Update loan status to returned
+            await db.collection('loans').doc(loanId).update({
+                amountPaid: loan.amount,
+                status: 'Returned'
+            });
+            
+            transactionType = 'Loan-Return';
+            newStatus = 'Returned';
+        }
+        
+        // Add transaction for loan return (partial or full)
+        const transactionData = {
             memberId: loan.borrowerId,
-            type: 'Loan-Return',
-            amount: loan.amount,
+            type: transactionType,
+            amount: returnAmount,
             date: returnDate,
             loanId: loanId
-        });
+        };
+        
+        // Add comments if provided
+        if (comments) {
+            transactionData.comments = comments;
+        }
+        
+        await db.collection('transactions').add(transactionData);
         
         // Refresh dashboard
         await refreshDashboard();
         
         hideModal();
-        showSuccessMessage('Loan return recorded successfully!');
+        const message = isPartial 
+            ? `Partial return of ₹${returnAmount.toFixed(2)} recorded successfully! Loan status: ${newStatus}`
+            : 'Loan return recorded successfully!';
+        showSuccessMessage(message);
     } catch (error) {
         console.error('Error recording loan return:', error);
         showFormError('Failed to record loan return. Please try again.');
