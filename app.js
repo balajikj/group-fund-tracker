@@ -7,6 +7,9 @@ let loans = [];
 // Load all dashboard data
 async function loadDashboardData() {
     try {
+        // Reset pagination to page 1 when loading data
+        currentTransactionPage = 1;
+        
         await Promise.all([
             loadMembers(),
             loadTransactions(),
@@ -151,16 +154,29 @@ function displayLoansTable() {
         `;
     }).join('');
 }
-// Display transactions table
+// Pagination state
+let currentTransactionPage = 1;
+const transactionsPerPage = 15;
+
+// Display transactions table with pagination
 function displayTransactionsTable() {
     const tbody = document.getElementById('transactionsTableBody');
+    const pagination = document.getElementById('transactionPagination');
     
     if (transactions.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5" class="no-data">No transactions yet</td></tr>';
+        pagination.classList.add('hidden');
         return;
     }
     
-    tbody.innerHTML = transactions.map(txn => {
+    // Calculate pagination
+    const totalPages = Math.ceil(transactions.length / transactionsPerPage);
+    const startIndex = (currentTransactionPage - 1) * transactionsPerPage;
+    const endIndex = startIndex + transactionsPerPage;
+    const paginatedTransactions = transactions.slice(startIndex, endIndex);
+    
+    // Display transactions for current page
+    tbody.innerHTML = paginatedTransactions.map(txn => {
         const member = members.find(m => m.id === txn.memberId);
         const memberName = member ? member.name : 'Unknown';
         
@@ -179,6 +195,39 @@ function displayTransactionsTable() {
             </tr>
         `;
     }).join('');
+    
+    // Update pagination controls
+    if (totalPages > 1) {
+        pagination.classList.remove('hidden');
+        document.getElementById('transactionPageInfo').textContent = `Page ${currentTransactionPage} of ${totalPages}`;
+        document.getElementById('prevTransactionPage').disabled = currentTransactionPage === 1;
+        document.getElementById('nextTransactionPage').disabled = currentTransactionPage === totalPages;
+    } else {
+        pagination.classList.add('hidden');
+    }
+}
+
+// Initialize pagination event listeners
+function initTransactionPagination() {
+    document.getElementById('prevTransactionPage').addEventListener('click', () => {
+        if (currentTransactionPage > 1) {
+            currentTransactionPage--;
+            displayTransactionsTable();
+        }
+    });
+    
+    document.getElementById('nextTransactionPage').addEventListener('click', () => {
+        const totalPages = Math.ceil(transactions.length / transactionsPerPage);
+        if (currentTransactionPage < totalPages) {
+            currentTransactionPage++;
+            displayTransactionsTable();
+        }
+    });
+}
+
+// Call init on page load
+if (document.getElementById('prevTransactionPage')) {
+    initTransactionPagination();
 }
 
 // Display members table

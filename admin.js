@@ -162,6 +162,12 @@ async function handleAddMember(e) {
 
 // Show Add Contribution Form
 function showAddContributionForm() {
+    // Check if user is Admin or CoAdmin
+    if (!window.isAdminOrCoAdmin()) {
+        alert('Access Denied: Only Admin and CoAdmin users can add contributions.');
+        return;
+    }
+    
     modalBody.innerHTML = `
         <h3>➕ Add Contribution</h3>
         <form id="addContributionForm">
@@ -258,6 +264,12 @@ async function handleAddContribution(e) {
 
 // Show Add Loan Form
 function showAddLoanForm() {
+    // Check if user is Admin or CoAdmin
+    if (!window.isAdminOrCoAdmin()) {
+        alert('Access Denied: Only Admin and CoAdmin users can disburse loans.');
+        return;
+    }
+    
     modalBody.innerHTML = `
         <h3>💸 Disburse Loan</h3>
         <form id="addLoanForm">
@@ -351,6 +363,12 @@ async function handleAddLoan(e) {
 
 // Show Record Return Form
 function showRecordReturnForm() {
+    // Check if user is Admin or CoAdmin
+    if (!window.isAdminOrCoAdmin()) {
+        alert('Access Denied: Only Admin and CoAdmin users can record loan returns.');
+        return;
+    }
+    
     // Get only outstanding loans
     const outstandingLoans = loans.filter(loan => loan.status === 'Outstanding');
     
