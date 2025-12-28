@@ -604,7 +604,8 @@ function showAddExpenseForm() {
                     <option value="Expense-Audit">Audit Only (For Record Keeping)</option>
                 </select>
                 <small style="color: #64748b; display: block; margin-top: 5px;">
-                    <strong>Actual:</strong> Deducts from total fund | <strong>Audit:</strong> Record only, no deduction
+                    <strong>Actual:</strong> Deducts from total fund & splits cost equally among all members<br>
+                    <strong>Audit:</strong> Record only, no deduction or member impact
                 </small>
             </div>
             
@@ -660,24 +661,81 @@ async function handleAddExpense(e) {
     const description = document.getElementById('expenseDescription').value.trim();
     
     try {
-        // Create transaction for expense
-        const transactionData = {
-            memberId: null, // Expenses are not tied to a specific member
-            type: expenseType,
-            amount: -Math.abs(amount), // Negative to indicate money going out
-            date: date,
-            loanId: null,
-            comments: `[${category}] ${description}`
-        };
-        
-        await db.collection('transactions').add(transactionData);
-        
-        // Refresh dashboard
-        await refreshDashboard();
-        
-        hideModal();
-        const typeLabel = expenseType === 'Expense-Actual' ? 'Actual Expense' : 'Audit-Only Expense';
-        showSuccessMessage(`${typeLabel} of ₹${amount.toFixed(2)} recorded successfully!`);
+        // If it's an actual expense, split equally among all members and deduct from lifetime contributions
+        if (expenseType === 'Expense-Actual') {
+            // Fetch all members from database to ensure we have fresh data
+            const membersSnapshot = await db.collection('members').get();
+            const allMembers = membersSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            
+            console.log('Total members found:', allMembers.length);
+            console.log('Members before expense:', allMembers.map(m => ({ name: m.name, contribution: m.lifetimeContribution })));
+            
+            if (allMembers.length === 0) {
+                showFormError('No members found. Cannot split expense.');
+                return;
+            }
+            
+            // Calculate per-member share
+            const perMemberShare = amount / allMembers.length;
+            console.log(`Per member share: ₹${perMemberShare.toFixed(2)} (Total: ₹${amount.toFixed(2)} / ${allMembers.length} members)`);
+            
+            // Create a batch for all updates
+            const batch = db.batch();
+            
+            // Update each member's lifetime contribution
+            allMembers.forEach(member => {
+                const memberRef = db.collection('members').doc(member.id);
+                const currentContribution = member.lifetimeContribution || 0;
+                const newContribution = currentContribution - perMemberShare;
+                
+                console.log(`${member.name}: ₹${currentContribution.toFixed(2)} - ₹${perMemberShare.toFixed(2)} = ₹${newContribution.toFixed(2)}`);
+                
+                batch.update(memberRef, {
+                    lifetimeContribution: newContribution
+                });
+            });
+            
+            // Add the transaction to the batch
+            const transactionRef = db.collection('transactions').doc();
+            batch.set(transactionRef, {
+                memberId: null, // Expenses are not tied to a specific member
+                type: expenseType,
+                amount: -Math.abs(amount), // Negative to indicate money going out
+                date: date,
+                loanId: null,
+                comments: `[${category}] ${description}`
+            });
+            
+            // Commit all updates at once (member updates + transaction)
+            await batch.commit();
+            
+            console.log(`Expense of ₹${amount.toFixed(2)} split equally: ₹${perMemberShare.toFixed(2)} per member across ${allMembers.length} members`);
+            
+            // Refresh dashboard
+            await refreshDashboard();
+            
+            hideModal();
+            showSuccessMessage(`Actual Expense of ₹${amount.toFixed(2)} recorded! Each member's share: ₹${perMemberShare.toFixed(2)}`);
+        } else {
+            // Audit expense - just create transaction without affecting members
+            await db.collection('transactions').add({
+                memberId: null,
+                type: expenseType,
+                amount: -Math.abs(amount),
+                date: date,
+                loanId: null,
+                comments: `[${category}] ${description}`
+            });
+            
+            // Refresh dashboard
+            await refreshDashboard();
+            
+            hideModal();
+            showSuccessMessage(`Audit-Only Expense of ₹${amount.toFixed(2)} recorded successfully!`);
+        }
     } catch (error) {
         console.error('Error adding expense:', error);
         showFormError('Failed to add expense. Please try again.');
