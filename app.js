@@ -85,11 +85,11 @@ function calculateAndDisplayMetrics() {
     // Calculate total amount (current fund + outstanding loans)
     const totalAmount = totalFund + outstandingLoans;
     
-    // Budget allocations (10% travel, 20% medical, 50% lending, 20% reserve) - based on current total fund
-    const travelBudget = totalFund * 0.10;
-    const medicalBudget = totalFund * 0.20;
-    const lendingBudget = totalFund * 0.50;
-    const reserveBudget = totalFund * 0.20;
+    // Budget allocations (10% travel, 20% medical, 50% lending, 20% reserve) - based on total amount
+    const travelBudget = totalAmount * 0.10;
+    const medicalBudget = totalAmount * 0.20;
+    const lendingBudget = totalAmount * 0.50;
+    const reserveBudget = totalAmount * 0.20;
     
     // Display values
     document.getElementById('totalFund').textContent = formatCurrency(totalFund);
