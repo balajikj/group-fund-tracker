@@ -96,13 +96,39 @@
                         <div class="metric-value" id="myContribution">₹0.00</div>
                     </div>
                 </div>
+                <div style="margin-top: 1rem; text-align: center;">
+                    <button id="requestContributionBtn" class="btn btn-success">➕ Request Contribution</button>
+                </div>
+            </section>
+
+            <!-- Pending Requests (Only visible to Admin/CoAdmin) -->
+            <section id="pendingRequestsPanel" class="card hidden">
+                <h2>📋 Pending Contribution Requests</h2>
+                <div class="table-container">
+                    <table id="requestsTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Member</th>
+                                <th>Type</th>
+                                <th>Amount</th>
+                                <th>Comments</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="requestsTableBody">
+                            <tr>
+                                <td colspan="6" class="no-data">No pending requests</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </section>
 
             <!-- Admin Actions (Only visible to Admin/CoAdmin) -->
             <section id="adminPanel" class="card hidden">
                 <h2>⚙️ Admin Actions</h2>
                 <div class="admin-actions">
-                    <button id="addContributionBtn" class="btn btn-success">➕ Add Contribution</button>
                     <button id="addLoanBtn" class="btn btn-warning">💸 Disburse Loan</button>
                     <button id="recordReturnBtn" class="btn btn-info">✅ Record Loan Return</button>
                     <button id="addExpenseBtn" class="btn btn-danger">💰 Add Expense</button>

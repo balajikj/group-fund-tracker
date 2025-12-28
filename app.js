@@ -3,6 +3,7 @@
 let members = [];
 let transactions = [];
 let loans = [];
+let pendingRequests = [];
 
 // Load all dashboard data
 async function loadDashboardData() {
@@ -13,7 +14,8 @@ async function loadDashboardData() {
         await Promise.all([
             loadMembers(),
             loadTransactions(),
-            loadLoans()
+            loadLoans(),
+            loadPendingRequests()
         ]);
         
         calculateAndDisplayMetrics();
@@ -21,6 +23,7 @@ async function loadDashboardData() {
         displayLoansTable();
         displayTransactionsTable();
         displayMembersTable();
+        displayPendingRequestsTable();
     } catch (error) {
         console.error('Error loading dashboard data:', error);
         alert('Error loading data. Please refresh the page.');
@@ -55,6 +58,28 @@ async function loadLoans() {
         id: doc.id,
         ...doc.data()
     }));
+}
+
+// Load pending contribution requests from Firestore
+async function loadPendingRequests() {
+    try {
+        const snapshot = await db.collection('contributionRequests')
+            .where('status', '==', 'Pending')
+            .get();
+        
+        pendingRequests = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }))
+        // Sort by requestedAt on client side to avoid index requirement
+        .sort((a, b) => {
+            if (!a.requestedAt || !b.requestedAt) return 0;
+            return b.requestedAt.toMillis() - a.requestedAt.toMillis();
+        });
+    } catch (error) {
+        console.error('Error loading pending requests:', error);
+        pendingRequests = [];
+    }
 }
 
 // Calculate and display all financial metrics
@@ -269,6 +294,125 @@ function displayMembersTable() {
     }).join('');
 }
 
+// Display Pending Contribution Requests Table
+function displayPendingRequestsTable() {
+    const tbody = document.getElementById('requestsTableBody');
+    
+    if (!tbody) {
+        return; // Panel might not be visible for non-admin users
+    }
+    
+    if (pendingRequests.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="no-data">No pending requests</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = pendingRequests.map(request => {
+        const dateStr = request.date ? request.date.toDate().toLocaleDateString('en-IN') : 'N/A';
+        const requestedAtStr = request.requestedAt ? request.requestedAt.toDate().toLocaleDateString('en-IN') : 'N/A';
+        
+        return `
+            <tr>
+                <td>${requestedAtStr}</td>
+                <td>${request.memberName || 'Unknown'}</td>
+                <td>${request.type.replace('Contribution-', '')}</td>
+                <td class="amount-positive">${formatCurrency(request.amount)}</td>
+                <td>${request.comments || '-'}</td>
+                <td>
+                    <button class="btn-small btn-success" onclick="approveRequest('${request.id}')">Approve</button>
+                    <button class="btn-small btn-danger" onclick="rejectRequest('${request.id}')">Reject</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Approve Contribution Request
+async function approveRequest(requestId) {
+    const request = pendingRequests.find(r => r.id === requestId);
+    if (!request) {
+        alert('Request not found.');
+        return;
+    }
+    
+    const adminComments = prompt(`Approve contribution request from ${request.memberName}?\n\nAmount: ${formatCurrency(request.amount)}\nType: ${request.type}\n\nAdd admin comments (optional):`);
+    
+    if (adminComments === null) {
+        return; // User cancelled
+    }
+    
+    try {
+        // Create transaction
+        const transactionData = {
+            memberId: request.memberId,
+            type: request.type,
+            amount: request.amount,
+            date: request.date,
+            loanId: null,
+            comments: request.comments || ''
+        };
+        
+        await db.collection('transactions').add(transactionData);
+        
+        // Update member's lifetime contribution
+        const memberRef = db.collection('members').doc(request.memberId);
+        const memberDoc = await memberRef.get();
+        const currentContribution = memberDoc.data().lifetimeContribution || 0;
+        
+        await memberRef.update({
+            lifetimeContribution: currentContribution + request.amount
+        });
+        
+        // Update request status
+        await db.collection('contributionRequests').doc(requestId).update({
+            status: 'Approved',
+            adminComments: adminComments,
+            approvedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            approvedBy: window.getCurrentUser().id
+        });
+        
+        // Refresh dashboard
+        await refreshDashboard();
+        showSuccessMessage('Contribution request approved successfully!');
+    } catch (error) {
+        console.error('Error approving request:', error);
+        alert('Failed to approve request. Please try again.');
+    }
+}
+
+// Reject Contribution Request
+async function rejectRequest(requestId) {
+    const request = pendingRequests.find(r => r.id === requestId);
+    if (!request) {
+        alert('Request not found.');
+        return;
+    }
+    
+    const adminComments = prompt(`Reject contribution request from ${request.memberName}?\n\nAmount: ${formatCurrency(request.amount)}\nType: ${request.type}\n\nAdd rejection reason (required):`);
+    
+    if (!adminComments || adminComments.trim() === '') {
+        alert('Rejection reason is required.');
+        return;
+    }
+    
+    try {
+        // Update request status
+        await db.collection('contributionRequests').doc(requestId).update({
+            status: 'Rejected',
+            adminComments: adminComments.trim(),
+            rejectedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            rejectedBy: window.getCurrentUser().id
+        });
+        
+        // Refresh dashboard
+        await refreshDashboard();
+        showSuccessMessage('Contribution request rejected.');
+    } catch (error) {
+        console.error('Error rejecting request:', error);
+        alert('Failed to reject request. Please try again.');
+    }
+}
+
 // Helper: Format currency
 function formatCurrency(amount) {
     return '₹' + amount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
@@ -361,3 +505,5 @@ async function refreshDashboard() {
 window.loadDashboardData = loadDashboardData;
 window.refreshDashboard = refreshDashboard;
 window.members = members;
+window.approveRequest = approveRequest;
+window.rejectRequest = rejectRequest;

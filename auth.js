@@ -98,13 +98,16 @@ function showDashboard() {
     const adminPanel = document.getElementById('adminPanel');
     const adminOnlyPanel = document.getElementById('adminOnlyPanel');
     const membersPanel = document.getElementById('membersPanel');
+    const pendingRequestsPanel = document.getElementById('pendingRequestsPanel');
     
     if (isAdminOrCoAdmin()) {
         adminPanel.classList.remove('hidden');
         membersPanel.classList.remove('hidden');
+        pendingRequestsPanel.classList.remove('hidden');
     } else {
         adminPanel.classList.add('hidden');
         membersPanel.classList.add('hidden');
+        pendingRequestsPanel.classList.add('hidden');
     }
     
     // Show Admin-only panel only for Admin role

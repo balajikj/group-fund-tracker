@@ -194,6 +194,17 @@ body {
     background-color: #dc2626;
 }
 
+/* Small buttons for inline actions */
+.btn-small {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+    margin-right: 0.5rem;
+}
+
+.btn-small:last-child {
+    margin-right: 0;
+}
+
 /* Header */
 header {
     background: var(--bg-secondary);

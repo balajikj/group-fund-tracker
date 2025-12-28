@@ -6,18 +6,14 @@ const modalBody = document.getElementById('modalBody');
 const closeModal = document.querySelector('.close');
 
 const addMemberBtn = document.getElementById('addMemberBtn');
-const addContributionBtn = document.getElementById('addContributionBtn');
 const addLoanBtn = document.getElementById('addLoanBtn');
 const recordReturnBtn = document.getElementById('recordReturnBtn');
 const addExpenseBtn = document.getElementById('addExpenseBtn');
+const requestContributionBtn = document.getElementById('requestContributionBtn');
 
 // Event Listeners
 if (addMemberBtn) {
     addMemberBtn.addEventListener('click', showAddMemberForm);
-}
-
-if (addContributionBtn) {
-    addContributionBtn.addEventListener('click', showAddContributionForm);
 }
 
 if (addLoanBtn) {
@@ -30,6 +26,10 @@ if (recordReturnBtn) {
 
 if (addExpenseBtn) {
     addExpenseBtn.addEventListener('click', showAddExpenseForm);
+}
+
+if (requestContributionBtn) {
+    requestContributionBtn.addEventListener('click', showRequestContributionForm);
 }
 
 if (closeModal) {
@@ -165,28 +165,24 @@ async function handleAddMember(e) {
     }
 }
 
-// Show Add Contribution Form
-function showAddContributionForm() {
-    // Check if user is Admin or CoAdmin
-    if (!window.isAdminOrCoAdmin()) {
-        alert('Access Denied: Only Admin and CoAdmin users can add contributions.');
+// Show Request Contribution Form (for all users)
+function showRequestContributionForm() {
+    const currentUser = window.getCurrentUser();
+    if (!currentUser) {
+        alert('Unable to load user information. Please refresh the page.');
         return;
     }
-    
+
     modalBody.innerHTML = `
-        <h3>➕ Add Contribution</h3>
-        <form id="addContributionForm">
-            <div class="form-group">
-                <label for="contributionMember">Member *</label>
-                <select id="contributionMember" required>
-                    <option value="">Select Member</option>
-                    ${members.map(m => `<option value="${m.id}">${m.name}</option>`).join('')}
-                </select>
-            </div>
-            
+        <h3>➕ Request Contribution</h3>
+        <p style="color: #64748b; margin-bottom: 1rem; font-size: 0.9rem;">
+            Submit your contribution for Admin/CoAdmin approval
+        </p>
+        <form id="requestContributionForm">
             <div class="form-group">
                 <label for="contributionType">Contribution Type *</label>
                 <select id="contributionType" required>
+                    <option value="">Select Type</option>
                     <option value="Contribution-Monthly">Monthly</option>
                     <option value="Contribution-Quarterly">Quarterly</option>
                 </select>
@@ -204,10 +200,10 @@ function showAddContributionForm() {
             
             <div class="form-group">
                 <label for="contributionComments">Comments</label>
-                <textarea id="contributionComments" rows="3" placeholder="Add any additional information or notes (optional)"></textarea>
+                <textarea id="contributionComments" rows="3" placeholder="Add any additional information (optional)"></textarea>
             </div>
             
-            <button type="submit" class="btn btn-success">Add Contribution</button>
+            <button type="submit" class="btn btn-success">Submit Request</button>
             <div id="formMessage" class="error-message"></div>
         </form>
     `;
@@ -215,15 +211,15 @@ function showAddContributionForm() {
     // Set default date to today
     document.getElementById('contributionDate').valueAsDate = new Date();
     
-    document.getElementById('addContributionForm').addEventListener('submit', handleAddContribution);
+    document.getElementById('requestContributionForm').addEventListener('submit', handleRequestContribution);
     showModal();
 }
 
-// Handle Add Contribution
-async function handleAddContribution(e) {
+// Handle Request Contribution
+async function handleRequestContribution(e) {
     e.preventDefault();
     
-    const memberId = document.getElementById('contributionMember').value;
+    const currentUser = window.getCurrentUser();
     const type = document.getElementById('contributionType').value;
     const amount = parseFloat(document.getElementById('contributionAmount').value);
     const dateInput = document.getElementById('contributionDate').value;
@@ -231,40 +227,41 @@ async function handleAddContribution(e) {
     const comments = document.getElementById('contributionComments').value.trim();
     
     try {
-        // Add transaction
-        const transactionData = {
-            memberId,
-            type,
-            amount,
-            date,
-            loanId: null
-        };
-        
-        // Add comments if provided
-        if (comments) {
-            transactionData.comments = comments;
-        }
-        
-        await db.collection('transactions').add(transactionData);
-        
-        // Update member's lifetime contribution
-        const memberRef = db.collection('members').doc(memberId);
-        const memberDoc = await memberRef.get();
-        const currentContribution = memberDoc.data().lifetimeContribution || 0;
-        
-        await memberRef.update({
-            lifetimeContribution: currentContribution + amount
+        // Create contribution request
+        await db.collection('contributionRequests').add({
+            memberId: currentUser.id,
+            memberName: currentUser.name,
+            type: type,
+            amount: amount,
+            date: date,
+            comments: comments || '',
+            status: 'Pending',
+            requestedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         
         // Refresh dashboard
-        await refreshDashboard();
+        if (typeof refreshDashboard === 'function') {
+            await refreshDashboard();
+        }
         
         hideModal();
-        showSuccessMessage('Contribution added successfully!');
+        showSuccessMessage('Contribution request submitted successfully! Awaiting approval from Admin/CoAdmin.');
     } catch (error) {
-        console.error('Error adding contribution:', error);
-        showFormError('Failed to add contribution. Please try again.');
+        console.error('Error submitting contribution request:', error);
+        showFormError('Failed to submit request. Please try again.');
     }
+}
+
+// OLD: Show Add Contribution Form - REMOVED, keeping for reference if needed
+function showAddContributionForm() {
+    // This function is no longer used - contributions are now request-based
+    alert('Please use the "Request Contribution" feature. Contributions require Admin/CoAdmin approval.');
+}
+
+// OLD: Handle Add Contribution - REMOVED
+function handleAddContribution(e) {
+    e.preventDefault();
+    alert('This feature has been replaced by the contribution request system.');
 }
 
 // Show Add Loan Form
