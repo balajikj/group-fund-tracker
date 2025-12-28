@@ -9,6 +9,7 @@ const addMemberBtn = document.getElementById('addMemberBtn');
 const addContributionBtn = document.getElementById('addContributionBtn');
 const addLoanBtn = document.getElementById('addLoanBtn');
 const recordReturnBtn = document.getElementById('recordReturnBtn');
+const addExpenseBtn = document.getElementById('addExpenseBtn');
 
 // Event Listeners
 if (addMemberBtn) {
@@ -25,6 +26,10 @@ if (addLoanBtn) {
 
 if (recordReturnBtn) {
     recordReturnBtn.addEventListener('click', showRecordReturnForm);
+}
+
+if (addExpenseBtn) {
+    addExpenseBtn.addEventListener('click', showAddExpenseForm);
 }
 
 if (closeModal) {
@@ -581,4 +586,103 @@ function showSuccessMessage(message) {
     setTimeout(() => {
         successDiv.remove();
     }, 3000);
+}
+
+// Show Add Expense Form
+function showAddExpenseForm() {
+    // Check if user is Admin or CoAdmin
+    if (!window.isAdminOrCoAdmin()) {
+        alert('Access Denied: Only Admin and CoAdmin users can add expenses.');
+        return;
+    }
+
+    modalBody.innerHTML = `
+        <h3>💰 Add Expense</h3>
+        <form id="addExpenseForm">
+            <div class="form-group">
+                <label for="expenseType">Expense Type *</label>
+                <select id="expenseType" required>
+                    <option value="">Select Type</option>
+                    <option value="Expense-Actual">Actual Expense (Impacts Total Amount)</option>
+                    <option value="Expense-Audit">Audit Only (For Record Keeping)</option>
+                </select>
+                <small style="color: #64748b; display: block; margin-top: 5px;">
+                    <strong>Actual:</strong> Deducts from total fund | <strong>Audit:</strong> Record only, no deduction
+                </small>
+            </div>
+            
+            <div class="form-group">
+                <label for="expenseCategory">Category *</label>
+                <select id="expenseCategory" required>
+                    <option value="">Select Category</option>
+                    <option value="Travel">🚗 Travel</option>
+                    <option value="Medical">🏥 Medical Emergency</option>
+                    <option value="Administrative">📋 Administrative</option>
+                    <option value="Maintenance">🔧 Maintenance</option>
+                    <option value="Event">🎉 Event</option>
+                    <option value="Other">📌 Other</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="expenseAmount">Amount (₹) *</label>
+                <input type="number" id="expenseAmount" step="0.01" min="0.01" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="expenseDate">Date *</label>
+                <input type="date" id="expenseDate" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="expenseDescription">Description *</label>
+                <textarea id="expenseDescription" rows="3" required placeholder="Provide details about this expense"></textarea>
+            </div>
+            
+            <button type="submit" class="btn btn-danger">Add Expense</button>
+            <div id="formMessage" class="error-message"></div>
+        </form>
+    `;
+    
+    // Set default date to today
+    document.getElementById('expenseDate').valueAsDate = new Date();
+    
+    document.getElementById('addExpenseForm').addEventListener('submit', handleAddExpense);
+    showModal();
+}
+
+// Handle Add Expense
+async function handleAddExpense(e) {
+    e.preventDefault();
+    
+    const expenseType = document.getElementById('expenseType').value;
+    const category = document.getElementById('expenseCategory').value;
+    const amount = parseFloat(document.getElementById('expenseAmount').value);
+    const dateInput = document.getElementById('expenseDate').value;
+    const date = firebase.firestore.Timestamp.fromDate(new Date(dateInput));
+    const description = document.getElementById('expenseDescription').value.trim();
+    
+    try {
+        // Create transaction for expense
+        const transactionData = {
+            memberId: null, // Expenses are not tied to a specific member
+            type: expenseType,
+            amount: -Math.abs(amount), // Negative to indicate money going out
+            date: date,
+            loanId: null,
+            comments: `[${category}] ${description}`
+        };
+        
+        await db.collection('transactions').add(transactionData);
+        
+        // Refresh dashboard
+        await refreshDashboard();
+        
+        hideModal();
+        const typeLabel = expenseType === 'Expense-Actual' ? 'Actual Expense' : 'Audit-Only Expense';
+        showSuccessMessage(`${typeLabel} of ₹${amount.toFixed(2)} recorded successfully!`);
+    } catch (error) {
+        console.error('Error adding expense:', error);
+        showFormError('Failed to add expense. Please try again.');
+    }
 }

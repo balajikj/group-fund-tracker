@@ -70,7 +70,11 @@ function calculateAndDisplayMetrics() {
             totalFund -= Math.abs(txn.amount);
         } else if (txn.type === 'Loan-Return' || txn.type === 'Loan-PartialReturn') {
             totalFund += txn.amount;
+        } else if (txn.type === 'Expense-Actual') {
+            // Actual expenses impact the total fund
+            totalFund += txn.amount; // Amount is already negative
         }
+        // Expense-Audit is ignored in calculations (audit only)
     });
     
     // Calculate total outstanding loans (remaining balance only)
@@ -178,11 +182,20 @@ function displayTransactionsTable() {
     // Display transactions for current page
     tbody.innerHTML = paginatedTransactions.map(txn => {
         const member = members.find(m => m.id === txn.memberId);
-        const memberName = member ? member.name : 'Unknown';
+        const memberName = txn.memberId ? (member ? member.name : 'Unknown') : 'N/A';
         
         const typeClass = getTransactionTypeClass(txn.type);
-        const amountClass = txn.type === 'Loan-Disbursement' ? 'amount-negative' : 'amount-positive';
-        const amountPrefix = txn.type === 'Loan-Disbursement' ? '-' : '+';
+        
+        // Determine amount class and prefix based on transaction type
+        let amountClass, amountPrefix;
+        if (txn.type === 'Loan-Disbursement' || txn.type.startsWith('Expense')) {
+            amountClass = 'amount-negative';
+            amountPrefix = '-';
+        } else {
+            amountClass = 'amount-positive';
+            amountPrefix = '+';
+        }
+        
         const comments = txn.comments ? txn.comments : '-';
         
         return `
@@ -326,6 +339,10 @@ function getTransactionTypeClass(type) {
         return 'type-loan';
     } else if (type === 'Loan-Return' || type === 'Loan-PartialReturn') {
         return 'type-return';
+    } else if (type === 'Expense-Actual') {
+        return 'type-expense-actual';
+    } else if (type === 'Expense-Audit') {
+        return 'type-expense-audit';
     }
     return '';
 }

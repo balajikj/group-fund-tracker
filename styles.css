@@ -405,6 +405,16 @@ tbody tr:hover {
     color: #1e40af;
 }
 
+.type-expense-actual {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.type-expense-audit {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
 .amount-positive {
     color: var(--success-color);
     font-weight: 600;
