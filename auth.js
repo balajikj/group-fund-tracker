@@ -224,7 +224,13 @@ function showDashboard() {
     
     // Update user info in header
     userName.textContent = `Welcome, ${currentUserData.name}`;
-    userRole.textContent = currentUserData.role;
+    
+    // For members, show identifier in role badge
+    if (currentUserData.role === 'Member' && currentUserData.identifier) {
+        userRole.textContent = `${currentUserData.role} (${currentUserData.identifier})`;
+    } else {
+        userRole.textContent = currentUserData.role;
+    }
     userRole.className = 'role-badge ' + currentUserData.role.toLowerCase();
     
     // Show/hide admin panel based on role
