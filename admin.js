@@ -67,17 +67,10 @@ function showAddMemberForm() {
     modalBody.innerHTML = `
         <h3>👤 Add New Member</h3>
         <p style="color: #64748b; margin-bottom: 1.5rem; font-size: 0.9rem;">
-            ⚠️ <strong>Note:</strong> Create Firebase Authentication user first, then use that user's UID as the UUID here.
+            💡 <strong>For Admin:</strong> Create with email/password in Firebase Auth, use UID as UUID<br>
+            💡 <strong>For Members:</strong> Auto-generate identifier for simple login
         </p>
         <form id="addMemberForm">
-            <div class="form-group">
-                <label for="memberUuid">UUID (Firebase Auth UID) *</label>
-                <input type="text" id="memberUuid" required placeholder="e.g., abc123xyz (Firebase Auth UID)">
-                <small style="color: #64748b; display: block; margin-top: 5px;">
-                    This will be used as the document ID. Get this from Firebase Authentication.
-                </small>
-            </div>
-            
             <div class="form-group">
                 <label for="memberName">Name *</label>
                 <input type="text" id="memberName" required placeholder="Full Name">
@@ -85,12 +78,27 @@ function showAddMemberForm() {
             
             <div class="form-group">
                 <label for="memberRole">Role *</label>
-                <select id="memberRole" required>
+                <select id="memberRole" required onchange="toggleUuidField()">
                     <option value="">Select Role</option>
                     <option value="Admin">Admin</option>
-                    <option value="CoAdmin">CoAdmin</option>
                     <option value="Member">Member</option>
                 </select>
+            </div>
+            
+            <div class="form-group" id="uuidField" style="display: none;">
+                <label for="memberUuid">UUID (Firebase Auth UID) *</label>
+                <input type="text" id="memberUuid" placeholder="e.g., abc123xyz (from Firebase Auth)">
+                <small style="color: #64748b; display: block; margin-top: 5px;">
+                    Create Firebase Auth user first, then paste the UID here
+                </small>
+            </div>
+            
+            <div class="form-group" id="identifierField" style="display: none;">
+                <label for="memberIdentifier">Member Identifier *</label>
+                <input type="text" id="memberIdentifier" readonly style="background: #f1f5f9; cursor: not-allowed;">
+                <small style="color: #10b981; display: block; margin-top: 5px;">
+                    ✅ Auto-generated - Share this with the member for login
+                </small>
             </div>
             
             <div class="form-group">
@@ -103,45 +111,123 @@ function showAddMemberForm() {
         </form>
     `;
     
+    // Auto-generate identifier on page load
+    generateMemberIdentifier();
+    
     document.getElementById('addMemberForm').addEventListener('submit', handleAddMember);
     showModal();
+}
+
+// Toggle UUID/Identifier fields based on role
+window.toggleUuidField = function() {
+    const role = document.getElementById('memberRole').value;
+    const uuidField = document.getElementById('uuidField');
+    const identifierField = document.getElementById('identifierField');
+    const uuidInput = document.getElementById('memberUuid');
+    
+    if (role === 'Admin') {
+        uuidField.style.display = 'block';
+        identifierField.style.display = 'none';
+        uuidInput.required = true;
+    } else if (role === 'Member') {
+        uuidField.style.display = 'none';
+        identifierField.style.display = 'block';
+        uuidInput.required = false;
+        generateMemberIdentifier();
+    } else {
+        uuidField.style.display = 'none';
+        identifierField.style.display = 'none';
+        uuidInput.required = false;
+    }
+};
+
+// Generate random member identifier
+function generateMemberIdentifier() {
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let identifier = '';
+    for (let i = 0; i < 8; i++) {
+        identifier += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+    const identifierInput = document.getElementById('memberIdentifier');
+    if (identifierInput) {
+        identifierInput.value = identifier;
+    }
+    return identifier;
 }
 
 // Handle Add Member
 async function handleAddMember(e) {
     e.preventDefault();
     
-    const uuid = document.getElementById('memberUuid').value.trim();
     const name = document.getElementById('memberName').value.trim();
     const role = document.getElementById('memberRole').value;
     const lifetimeContribution = parseFloat(document.getElementById('memberContribution').value) || 0;
     
     try {
-        // Validate UUID is not empty
-        if (!uuid || uuid.length === 0) {
-            showFormError('UUID is required.');
+        let memberId;
+        let identifier = null;
+        
+        if (role === 'Admin') {
+            // Admin: Use Firebase Auth UID
+            const uuid = document.getElementById('memberUuid').value.trim();
+            
+            if (!uuid || uuid.length === 0) {
+                showFormError('UUID is required for Admin users.');
+                return;
+            }
+            
+            // Check if UUID already exists
+            const existingDoc = await db.collection('members').doc(uuid).get();
+            if (existingDoc.exists) {
+                showFormError('A member with this UUID already exists.');
+                return;
+            }
+            
+            memberId = uuid;
+            
+        } else if (role === 'Member') {
+            // Member: Generate random document ID and use identifier
+            identifier = document.getElementById('memberIdentifier').value;
+            
+            // Check if identifier already exists
+            const identifierCheck = await db.collection('members')
+                .where('identifier', '==', identifier)
+                .get();
+            
+            if (!identifierCheck.empty) {
+                showFormError('Identifier already exists. Generating new one...');
+                generateMemberIdentifier();
+                return;
+            }
+            
+            // Use random ID for document
+            const memberRef = db.collection('members').doc();
+            memberId = memberRef.id;
+            
+        } else {
+            showFormError('Please select a role.');
             return;
         }
         
-        // Check if UUID already exists in members collection
-        const existingDoc = await db.collection('members').doc(uuid).get();
-        if (existingDoc.exists) {
-            showFormError('A member with this UUID already exists. Please use a different UUID (Firebase Auth UID).');
-            return;
-        }
-        
-        // Create member document in Firestore with UUID as document ID
-        await db.collection('members').doc(uuid).set({
+        // Create member document
+        const memberData = {
             name: name,
             role: role,
             lifetimeContribution: lifetimeContribution,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        };
+        
+        // Add identifier for members
+        if (identifier) {
+            memberData.identifier = identifier;
+        }
+        
+        await db.collection('members').doc(memberId).set(memberData);
         
         // If lifetime contribution > 0, create an initial transaction
         if (lifetimeContribution > 0) {
             await db.collection('transactions').add({
-                memberId: uuid,
+                memberId: memberId,
                 type: 'Contribution-Initial',
                 amount: lifetimeContribution,
                 date: firebase.firestore.FieldValue.serverTimestamp(),
@@ -155,10 +241,18 @@ async function handleAddMember(e) {
         }
         
         hideModal();
-        const message = lifetimeContribution > 0 
-            ? `Member "${name}" added successfully with initial contribution of ₹${lifetimeContribution.toFixed(2)}`
-            : `Member "${name}" added successfully with UUID: ${uuid}`;
-        showSuccessMessage(message);
+        
+        // Show success message with identifier for members
+        let message;
+        if (role === 'Member') {
+            message = `✅ Member "${name}" added successfully!\n\n🔑 Member Identifier: ${identifier}\n\n📋 Share this identifier with ${name} for login.`;
+            alert(message);
+        } else {
+            message = lifetimeContribution > 0 
+                ? `Admin "${name}" added with initial contribution of ₹${lifetimeContribution.toFixed(2)}`
+                : `Admin "${name}" added successfully`;
+            showSuccessMessage(message);
+        }
     } catch (error) {
         console.error('Error adding member:', error);
         showFormError('Failed to add member: ' + error.message);
@@ -176,7 +270,7 @@ function showRequestContributionForm() {
     modalBody.innerHTML = `
         <h3>➕ Request Contribution</h3>
         <p style="color: #64748b; margin-bottom: 1rem; font-size: 0.9rem;">
-            Submit your contribution for Admin/CoAdmin approval
+            Submit your contribution for Admin approval
         </p>
         <form id="requestContributionForm">
             <div class="form-group">
@@ -245,7 +339,7 @@ async function handleRequestContribution(e) {
         }
         
         hideModal();
-        showSuccessMessage('Contribution request submitted successfully! Awaiting approval from Admin/CoAdmin.');
+        showSuccessMessage('Contribution request submitted successfully! Awaiting approval from Admin.');
     } catch (error) {
         console.error('Error submitting contribution request:', error);
         showFormError('Failed to submit request. Please try again.');
@@ -255,7 +349,7 @@ async function handleRequestContribution(e) {
 // OLD: Show Add Contribution Form - REMOVED, keeping for reference if needed
 function showAddContributionForm() {
     // This function is no longer used - contributions are now request-based
-    alert('Please use the "Request Contribution" feature. Contributions require Admin/CoAdmin approval.');
+    alert('Please use the "Request Contribution" feature. Contributions require Admin approval.');
 }
 
 // OLD: Handle Add Contribution - REMOVED
@@ -266,9 +360,9 @@ function handleAddContribution(e) {
 
 // Show Add Loan Form
 function showAddLoanForm() {
-    // Check if user is Admin or CoAdmin
+    // Check if user is Admin
     if (!window.isAdminOrCoAdmin()) {
-        alert('Access Denied: Only Admin and CoAdmin users can disburse loans.');
+        alert('Access Denied: Only Admin users can disburse loans.');
         return;
     }
     
@@ -365,9 +459,9 @@ async function handleAddLoan(e) {
 
 // Show Record Return Form
 function showRecordReturnForm() {
-    // Check if user is Admin or CoAdmin
+    // Check if user is Admin
     if (!window.isAdminOrCoAdmin()) {
-        alert('Access Denied: Only Admin and CoAdmin users can record loan returns.');
+        alert('Access Denied: Only Admin users can record loan returns.');
         return;
     }
     
@@ -587,9 +681,9 @@ function showSuccessMessage(message) {
 
 // Show Add Expense Form
 function showAddExpenseForm() {
-    // Check if user is Admin or CoAdmin
+    // Check if user is Admin
     if (!window.isAdminOrCoAdmin()) {
-        alert('Access Denied: Only Admin and CoAdmin users can add expenses.');
+        alert('Access Denied: Only Admin users can add expenses.');
         return;
     }
 

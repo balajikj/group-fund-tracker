@@ -299,7 +299,7 @@ function displayPendingRequestsTable() {
     const tbody = document.getElementById('requestsTableBody');
     
     if (!tbody) {
-        return; // Panel might not be visible for non-admin users
+        return;
     }
     
     if (pendingRequests.length === 0) {
@@ -307,9 +307,17 @@ function displayPendingRequestsTable() {
         return;
     }
     
+    const isAdminUser = currentUserData && currentUserData.role === 'Admin';
+    
     tbody.innerHTML = pendingRequests.map(request => {
         const dateStr = request.date ? request.date.toDate().toLocaleDateString('en-IN') : 'N/A';
         const requestedAtStr = request.requestedAt ? request.requestedAt.toDate().toLocaleDateString('en-IN') : 'N/A';
+        
+        // Show action buttons only for Admin users
+        const actionButtons = isAdminUser 
+            ? `<button class="btn-small btn-success" onclick="approveRequest('${request.id}')">Approve</button>
+               <button class="btn-small btn-danger" onclick="rejectRequest('${request.id}')">Reject</button>`
+            : `<span style="color: #64748b; font-size: 0.9rem;">Pending Admin Action</span>`;
         
         return `
             <tr>
@@ -318,10 +326,7 @@ function displayPendingRequestsTable() {
                 <td>${request.type.replace('Contribution-', '')}</td>
                 <td class="amount-positive">${formatCurrency(request.amount)}</td>
                 <td>${request.comments || '-'}</td>
-                <td>
-                    <button class="btn-small btn-success" onclick="approveRequest('${request.id}')">Approve</button>
-                    <button class="btn-small btn-danger" onclick="rejectRequest('${request.id}')">Reject</button>
-                </td>
+                <td>${actionButtons}</td>
             </tr>
         `;
     }).join('');
