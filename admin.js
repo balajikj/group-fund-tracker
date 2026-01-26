@@ -10,6 +10,7 @@ const addLoanBtn = document.getElementById('addLoanBtn');
 const recordReturnBtn = document.getElementById('recordReturnBtn');
 const addExpenseBtn = document.getElementById('addExpenseBtn');
 const requestContributionBtn = document.getElementById('requestContributionBtn');
+const requestLoanBtn = document.getElementById('requestLoanBtn');
 
 // Event Listeners
 if (addMemberBtn) {
@@ -30,6 +31,10 @@ if (addExpenseBtn) {
 
 if (requestContributionBtn) {
     requestContributionBtn.addEventListener('click', showRequestContributionForm);
+}
+
+if (requestLoanBtn) {
+    requestLoanBtn.addEventListener('click', showRequestLoanForm);
 }
 
 if (closeModal) {
@@ -357,6 +362,359 @@ function handleAddContribution(e) {
     e.preventDefault();
     alert('This feature has been replaced by the contribution request system.');
 }
+
+// Show Request Loan Form (for all users)
+function showRequestLoanForm() {
+    const currentUser = window.getCurrentUser();
+    if (!currentUser) {
+        alert('Unable to load user information. Please refresh the page.');
+        return;
+    }
+
+    // Calculate member's current outstanding loans
+    const memberLoans = window.members ? loans.filter(l => l.borrowerId === currentUser.id && l.status === 'Outstanding') : [];
+    const totalOutstanding = memberLoans.reduce((sum, loan) => {
+        const remaining = loan.amount - (loan.amountPaid || 0);
+        return sum + remaining;
+    }, 0);
+
+    // Calculate available lending budget
+    let totalFund = 0;
+    const txns = window.transactions || [];
+    txns.forEach(txn => {
+        if (txn.type.startsWith('Contribution')) {
+            totalFund += txn.amount;
+        } else if (txn.type === 'Loan-Disbursement') {
+            totalFund -= Math.abs(txn.amount);
+        } else if (txn.type === 'Loan-Return' || txn.type === 'Loan-PartialReturn') {
+            totalFund += txn.amount;
+        } else if (txn.type === 'Expense-Actual') {
+            totalFund += txn.amount;
+        }
+    });
+    
+    const loansData = window.loans || [];
+    const outstandingLoans = loansData
+        .filter(loan => loan.status === 'Outstanding')
+        .reduce((sum, loan) => {
+            const amountPaid = loan.amountPaid || 0;
+            const remaining = loan.amount - amountPaid;
+            return sum + remaining;
+        }, 0);
+    
+    const totalAmount = totalFund + outstandingLoans;
+    const lendingBudget = totalAmount * 0.50;
+
+    modalBody.innerHTML = `
+        <h3>💸 Request Loan</h3>
+        <p style="color: #64748b; margin-bottom: 1rem; font-size: 0.9rem;">
+            Submit your loan request for Admin approval
+        </p>
+        <form id="requestLoanForm">
+            <div class="form-group">
+                <label for="loanAmount">Requested Amount (₹) *</label>
+                <input type="number" id="loanAmount" step="0.01" min="100" max="100000" required placeholder="Min: ₹100, Max: ₹100,000">
+            </div>
+            
+            <div class="form-group">
+                <label for="loanDueDate">Requested Due Date *</label>
+                <input type="date" id="loanDueDate" required>
+                <small style="color: #64748b; display: block; margin-top: 5px;">
+                    Must be 7-180 days from today
+                </small>
+            </div>
+            
+            <div class="form-group">
+                <label for="loanComments">Reason/Comments (optional but recommended)</label>
+                <textarea id="loanComments" rows="3" placeholder="e.g., Medical emergency, Education fees, etc." maxlength="500"></textarea>
+            </div>
+            
+            <div style="background: #f1f5f9; padding: 1rem; border-radius: 8px; margin: 1rem 0; font-size: 0.9rem;">
+                <div style="margin-bottom: 0.5rem;">💡 <strong>Your Info:</strong></div>
+                <div>• Current outstanding: <strong>${formatCurrency(totalOutstanding)}</strong></div>
+                <div>• Available lending budget: <strong>${formatCurrency(lendingBudget)}</strong></div>
+                <div style="color: #64748b; margin-top: 0.5rem;">
+                    ⚠️ Total outstanding limit: ₹200,000
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-warning">Submit Loan Request</button>
+            <div id="formMessage" class="error-message"></div>
+        </form>
+    `;
+    
+    // Set min/max dates (7-180 days from today)
+    const today = new Date();
+    const minDate = new Date(today);
+    minDate.setDate(minDate.getDate() + 7);
+    const maxDate = new Date(today);
+    maxDate.setDate(maxDate.getDate() + 180);
+    
+    const dueDateInput = document.getElementById('loanDueDate');
+    dueDateInput.min = minDate.toISOString().split('T')[0];
+    dueDateInput.max = maxDate.toISOString().split('T')[0];
+    
+    // Set default to 30 days from today
+    const defaultDate = new Date(today);
+    defaultDate.setDate(defaultDate.getDate() + 30);
+    dueDateInput.value = defaultDate.toISOString().split('T')[0];
+    
+    document.getElementById('requestLoanForm').addEventListener('submit', handleRequestLoan);
+    showModal();
+}
+
+// Handle Request Loan
+async function handleRequestLoan(e) {
+    e.preventDefault();
+    
+    const currentUser = window.getCurrentUser();
+    const requestedAmount = parseFloat(document.getElementById('loanAmount').value);
+    const dueDateInput = document.getElementById('loanDueDate').value;
+    const requestedDueDate = firebase.firestore.Timestamp.fromDate(new Date(dueDateInput));
+    const comments = document.getElementById('loanComments').value.trim();
+    
+    try {
+        // Validate amount range
+        if (requestedAmount < 100 || requestedAmount > 100000) {
+            showFormError('Amount must be between ₹100 and ₹100,000');
+            return;
+        }
+        
+        // Validate due date (7-180 days from today)
+        const today = new Date();
+        const dueDate = new Date(dueDateInput);
+        const daysDiff = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+        
+        if (daysDiff < 7 || daysDiff > 180) {
+            showFormError('Due date must be 7-180 days from today');
+            return;
+        }
+        
+        // Check member's total outstanding
+        const memberLoans = loans.filter(l => l.borrowerId === currentUser.id && l.status === 'Outstanding');
+        const totalOutstanding = memberLoans.reduce((sum, loan) => {
+            const remaining = loan.amount - (loan.amountPaid || 0);
+            return sum + remaining;
+        }, 0);
+        
+        if (totalOutstanding + requestedAmount > 200000) {
+            showFormError('Your total outstanding would exceed ₹200,000');
+            return;
+        }
+        
+        // Validate against lending budget
+        let totalFund = 0;
+        transactions.forEach(txn => {
+            if (txn.type.startsWith('Contribution')) {
+                totalFund += txn.amount;
+            } else if (txn.type === 'Loan-Disbursement') {
+                totalFund -= Math.abs(txn.amount);
+            } else if (txn.type === 'Loan-Return' || txn.type === 'Loan-PartialReturn') {
+                totalFund += txn.amount;
+            } else if (txn.type === 'Expense-Actual') {
+                totalFund += txn.amount;
+            }
+        });
+        
+        const outstandingLoans = loans
+            .filter(loan => loan.status === 'Outstanding')
+            .reduce((sum, loan) => {
+                const amountPaid = loan.amountPaid || 0;
+                const remaining = loan.amount - amountPaid;
+                return sum + remaining;
+            }, 0);
+        
+        const totalAmount = totalFund + outstandingLoans;
+        const lendingBudget = totalAmount * 0.50;
+        
+        if (requestedAmount > lendingBudget) {
+            showFormError(`Requested amount exceeds available lending budget of ${formatCurrency(lendingBudget)}`);
+            return;
+        }
+        
+        // Create loan request
+        await db.collection('loanRequests').add({
+            memberId: currentUser.id,
+            memberName: currentUser.name,
+            requestedAmount: requestedAmount,
+            requestedDueDate: requestedDueDate,
+            comments: comments || '',
+            status: 'Pending',
+            requestedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        // Refresh dashboard
+        if (typeof refreshDashboard === 'function') {
+            await refreshDashboard();
+        }
+        
+        hideModal();
+        showSuccessMessage('Loan request submitted successfully! Awaiting Admin approval.');
+    } catch (error) {
+        console.error('Error creating loan request:', error);
+        showFormError('Failed to submit request. Please try again.');
+    }
+}
+
+// Helper function for formatting currency (imported from app.js)
+function formatCurrency(amount) {
+    return '₹' + amount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
+}
+
+// Show Review Loan Request Modal (Admin)
+function showReviewLoanRequestModal(request) {
+    if (!window.isAdmin()) {
+        alert('Only Admin users can review loan requests.');
+        return;
+    }
+
+    // Get member info
+    const member = members.find(m => m.id === request.memberId);
+    const memberContribution = member ? member.lifetimeContribution || 0 : 0;
+    
+    // Calculate member's outstanding loans
+    const memberLoans = loans.filter(l => l.borrowerId === request.memberId && l.status === 'Outstanding');
+    const totalOutstanding = memberLoans.reduce((sum, loan) => {
+        const remaining = loan.amount - (loan.amountPaid || 0);
+        return sum + remaining;
+    }, 0);
+    
+    // Calculate available lending budget
+    let totalFund = 0;
+    transactions.forEach(txn => {
+        if (txn.type.startsWith('Contribution')) {
+            totalFund += txn.amount;
+        } else if (txn.type === 'Loan-Disbursement') {
+            totalFund -= Math.abs(txn.amount);
+        } else if (txn.type === 'Loan-Return' || txn.type === 'Loan-PartialReturn') {
+            totalFund += txn.amount;
+        } else if (txn.type === 'Expense-Actual') {
+            totalFund += txn.amount;
+        }
+    });
+    
+    const outstandingLoans = loans
+        .filter(loan => loan.status === 'Outstanding')
+        .reduce((sum, loan) => {
+            const amountPaid = loan.amountPaid || 0;
+            const remaining = loan.amount - amountPaid;
+            return sum + remaining;
+        }, 0);
+    
+    const totalAmount = totalFund + outstandingLoans;
+    const lendingBudget = totalAmount * 0.50;
+
+    const requestedAtStr = request.requestedAt ? request.requestedAt.toDate().toLocaleDateString('en-IN') : 'N/A';
+    const dueDateStr = request.requestedDueDate ? request.requestedDueDate.toDate().toLocaleDateString('en-IN') : 'N/A';
+    const dueDateValue = request.requestedDueDate ? request.requestedDueDate.toDate().toISOString().split('T')[0] : '';
+
+    modalBody.innerHTML = `
+        <h3>💸 Review Loan Request</h3>
+        <div style="background: #f8fafc; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+            <div style="margin-bottom: 0.5rem;"><strong>Member:</strong> ${request.memberName} (#${request.memberId})</div>
+            <div style="margin-bottom: 0.5rem;"><strong>Lifetime Contribution:</strong> ${formatCurrency(memberContribution)}</div>
+            <div style="margin-bottom: 0.5rem;"><strong>Current Outstanding:</strong> ${formatCurrency(totalOutstanding)}</div>
+            <div><strong>Requested On:</strong> ${requestedAtStr}</div>
+        </div>
+        
+        <div style="border-left: 4px solid #fbbf24; padding-left: 1rem; margin-bottom: 1.5rem;">
+            <div style="font-size: 0.9rem; color: #64748b; margin-bottom: 0.5rem;">REQUESTED:</div>
+            <div style="margin-bottom: 0.5rem;"><strong>Amount:</strong> ${formatCurrency(request.requestedAmount)}</div>
+            <div style="margin-bottom: 0.5rem;"><strong>Due Date:</strong> ${dueDateStr}</div>
+            <div><strong>Reason:</strong> "${request.comments || 'No reason provided'}"</div>
+        </div>
+        
+        <form id="reviewLoanForm">
+            <h4 style="margin-bottom: 1rem;">🔧 Admin Overrides (optional)</h4>
+            
+            <div class="form-group">
+                <label for="approvedAmount">Approved Amount (₹)</label>
+                <input type="number" id="approvedAmount" step="0.01" min="100" max="100000" value="${request.requestedAmount}" placeholder="Leave as-is or modify">
+            </div>
+            
+            <div class="form-group">
+                <label for="approvedDueDate">Approved Due Date</label>
+                <input type="date" id="approvedDueDate" value="${dueDateValue}">
+            </div>
+            
+            <div class="form-group">
+                <label for="adminComments">Admin Comments (optional)</label>
+                <textarea id="adminComments" rows="2" placeholder="e.g., Approved as requested, Reduced amount per policy"></textarea>
+            </div>
+            
+            <div style="background: #ecfdf5; padding: 1rem; border-radius: 8px; margin: 1rem 0; font-size: 0.9rem;">
+                <div>💡 <strong>Available Lending Budget:</strong> ${formatCurrency(lendingBudget)}</div>
+            </div>
+            
+            <div style="display: flex; gap: 0.5rem; margin-top: 1.5rem;">
+                <button type="button" id="approveBtn" class="btn btn-success" style="flex: 1;">✅ Approve & Disburse</button>
+                <button type="button" id="rejectBtn" class="btn btn-danger" style="flex: 1;">❌ Reject</button>
+                <button type="button" onclick="hideModal()" class="btn btn-secondary">Cancel</button>
+            </div>
+            <div id="formMessage" class="error-message"></div>
+        </form>
+    `;
+    
+    // Set up approve button handler
+    document.getElementById('approveBtn').addEventListener('click', async () => {
+        const approvedAmount = parseFloat(document.getElementById('approvedAmount').value);
+        const approvedDueDate = document.getElementById('approvedDueDate').value;
+        const adminComments = document.getElementById('adminComments').value.trim();
+        
+        if (!approvedAmount || approvedAmount <= 0) {
+            showFormError('Please enter a valid approved amount');
+            return;
+        }
+        
+        if (!approvedDueDate) {
+            showFormError('Please select an approved due date');
+            return;
+        }
+        
+        // Disable button to prevent double-click
+        const approveBtn = document.getElementById('approveBtn');
+        approveBtn.disabled = true;
+        approveBtn.textContent = 'Processing...';
+        
+        const result = await window.approveLoanRequest(request.id, approvedAmount, approvedDueDate, adminComments);
+        
+        if (result && result.success) {
+            hideModal();
+        } else {
+            approveBtn.disabled = false;
+            approveBtn.textContent = '✅ Approve & Disburse';
+        }
+    });
+    
+    // Set up reject button handler
+    document.getElementById('rejectBtn').addEventListener('click', async () => {
+        const rejectionReason = prompt('Rejection reason (required, min 10 characters):');
+        
+        if (!rejectionReason || rejectionReason.trim().length < 10) {
+            alert('Rejection reason must be at least 10 characters.');
+            return;
+        }
+        
+        // Disable button to prevent double-click
+        const rejectBtn = document.getElementById('rejectBtn');
+        rejectBtn.disabled = true;
+        rejectBtn.textContent = 'Processing...';
+        
+        const result = await window.rejectLoanRequest(request.id, rejectionReason);
+        
+        if (result && result.success) {
+            hideModal();
+        } else {
+            rejectBtn.disabled = false;
+            rejectBtn.textContent = '❌ Reject';
+        }
+    });
+    
+    showModal();
+}
+
+// Export function for use in app.js
+window.showReviewLoanRequestModal = showReviewLoanRequestModal;
 
 // Show Add Loan Form
 function showAddLoanForm() {

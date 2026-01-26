@@ -117,8 +117,33 @@
                         <div class="metric-value" id="myContribution">₹0.00</div>
                     </div>
                 </div>
-                <div style="margin-top: 1rem; text-align: center;">
+                <div style="margin-top: 1rem; text-align: center; display: flex; gap: 0.5rem; justify-content: center;">
                     <button id="requestContributionBtn" class="btn btn-success">➕ Request Contribution</button>
+                    <button id="requestLoanBtn" class="btn btn-warning">💸 Request Loan</button>
+                </div>
+            </section>
+
+            <!-- My Loan Requests (Member View) -->
+            <section id="myLoanRequestsPanel" class="card hidden">
+                <h2>📋 My Loan Requests</h2>
+                <div class="table-container">
+                    <table id="myLoanRequestsTable">
+                        <thead>
+                            <tr>
+                                <th>Request Date</th>
+                                <th>Amount</th>
+                                <th>Due Date</th>
+                                <th>Status</th>
+                                <th>Decision Details</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="myLoanRequestsTableBody">
+                            <tr>
+                                <td colspan="6" class="no-data">No loan requests yet</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </section>
 
@@ -140,6 +165,31 @@
                         <tbody id="requestsTableBody">
                             <tr>
                                 <td colspan="6" class="no-data">No pending requests</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Pending Loan Requests (Admin Only) -->
+            <section id="pendingLoanRequestsPanel" class="card hidden">
+                <h2>💸 Pending Loan Requests</h2>
+                <div class="table-container">
+                    <table id="pendingLoanRequestsTable">
+                        <thead>
+                            <tr>
+                                <th>Requested</th>
+                                <th>Member</th>
+                                <th>Amount</th>
+                                <th>Due Date</th>
+                                <th>Reason</th>
+                                <th>Member Info</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pendingLoanRequestsTableBody">
+                            <tr>
+                                <td colspan="7" class="no-data">No pending loan requests</td>
                             </tr>
                         </tbody>
                     </table>

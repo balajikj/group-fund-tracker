@@ -4,6 +4,8 @@ let members = [];
 let transactions = [];
 let loans = [];
 let pendingRequests = [];
+let memberLoanRequests = [];
+let pendingLoanRequests = [];
 
 // Load all dashboard data
 async function loadDashboardData() {
@@ -15,7 +17,9 @@ async function loadDashboardData() {
             loadMembers(),
             loadTransactions(),
             loadLoans(),
-            loadPendingRequests()
+            loadPendingRequests(),
+            loadMemberLoanRequests(),
+            loadPendingLoanRequests()
         ]);
         
         calculateAndDisplayMetrics();
@@ -24,6 +28,8 @@ async function loadDashboardData() {
         displayTransactionsTable();
         displayMembersTable();
         displayPendingRequestsTable();
+        displayMemberLoanRequestsTable();
+        displayPendingLoanRequestsTable();
     } catch (error) {
         console.error('Error loading dashboard data:', error);
         alert('Error loading data. Please refresh the page.');
@@ -79,6 +85,56 @@ async function loadPendingRequests() {
     } catch (error) {
         console.error('Error loading pending requests:', error);
         pendingRequests = [];
+    }
+}
+
+// Load member's loan requests from Firestore
+async function loadMemberLoanRequests() {
+    try {
+        const currentUser = getCurrentUser();
+        if (!currentUser) {
+            memberLoanRequests = [];
+            return;
+        }
+        
+        const snapshot = await db.collection('loanRequests')
+            .where('memberId', '==', currentUser.id)
+            .get();
+        
+        memberLoanRequests = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }))
+        // Sort by requestedAt descending (newest first)
+        .sort((a, b) => {
+            if (!a.requestedAt || !b.requestedAt) return 0;
+            return b.requestedAt.toMillis() - a.requestedAt.toMillis();
+        });
+    } catch (error) {
+        console.error('Error loading member loan requests:', error);
+        memberLoanRequests = [];
+    }
+}
+
+// Load pending loan requests from Firestore (Admin view)
+async function loadPendingLoanRequests() {
+    try {
+        const snapshot = await db.collection('loanRequests')
+            .where('status', '==', 'Pending')
+            .get();
+        
+        pendingLoanRequests = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }))
+        // Sort by requestedAt ascending (FIFO queue)
+        .sort((a, b) => {
+            if (!a.requestedAt || !b.requestedAt) return 0;
+            return a.requestedAt.toMillis() - b.requestedAt.toMillis();
+        });
+    } catch (error) {
+        console.error('Error loading pending loan requests:', error);
+        pendingLoanRequests = [];
     }
 }
 
@@ -332,6 +388,104 @@ function displayPendingRequestsTable() {
     }).join('');
 }
 
+// Display Member's Loan Requests Table
+function displayMemberLoanRequestsTable() {
+    const tbody = document.getElementById('myLoanRequestsTableBody');
+    
+    if (!tbody) {
+        return;
+    }
+    
+    if (memberLoanRequests.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="no-data">No loan requests yet</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = memberLoanRequests.map(request => {
+        const requestedAtStr = request.requestedAt ? request.requestedAt.toDate().toLocaleDateString('en-IN') : 'N/A';
+        const dueDateStr = request.requestedDueDate ? request.requestedDueDate.toDate().toLocaleDateString('en-IN') : 'N/A';
+        
+        let statusBadge, decisionDetails, actionButtons;
+        
+        if (request.status === 'Pending') {
+            statusBadge = '<span style="background: #fbbf24; color: #78350f; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.85rem;">🟡 Pending</span>';
+            decisionDetails = 'Awaiting Admin review';
+            actionButtons = `<button class="btn-small btn-danger" onclick="cancelLoanRequest('${request.id}')">Cancel</button>`;
+        } else if (request.status === 'Approved') {
+            statusBadge = '<span style="background: #10b981; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.85rem;">✅ Approved</span>';
+            const approvedDate = request.reviewedAt ? request.reviewedAt.toDate().toLocaleDateString('en-IN') : 'N/A';
+            decisionDetails = `₹${formatCurrency(request.approvedAmount)} on ${approvedDate}`;
+            actionButtons = '-';
+        } else if (request.status === 'Rejected') {
+            statusBadge = '<span style="background: #ef4444; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.85rem;">❌ Rejected</span>';
+            decisionDetails = request.rejectionReason || 'No reason provided';
+            actionButtons = '-';
+        }
+        
+        return `
+            <tr>
+                <td>${requestedAtStr}</td>
+                <td class="amount-warning">${formatCurrency(request.requestedAmount)}</td>
+                <td>${dueDateStr}</td>
+                <td>${statusBadge}</td>
+                <td>${decisionDetails}</td>
+                <td>${actionButtons}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Display Pending Loan Requests Table (Admin View)
+function displayPendingLoanRequestsTable() {
+    const tbody = document.getElementById('pendingLoanRequestsTableBody');
+    
+    if (!tbody) {
+        return;
+    }
+    
+    if (pendingLoanRequests.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="no-data">No pending loan requests</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = pendingLoanRequests.map(request => {
+        const requestedAtStr = request.requestedAt ? request.requestedAt.toDate().toLocaleDateString('en-IN') : 'N/A';
+        const dueDateStr = request.requestedDueDate ? request.requestedDueDate.toDate().toLocaleDateString('en-IN') : 'N/A';
+        
+        // Get member info
+        const member = members.find(m => m.id === request.memberId);
+        const memberContribution = member ? formatCurrency(member.lifetimeContribution || 0) : 'N/A';
+        
+        // Calculate member's outstanding loans
+        const memberLoans = loans.filter(l => l.borrowerId === request.memberId && l.status === 'Outstanding');
+        const totalOutstanding = memberLoans.reduce((sum, loan) => {
+            const remaining = loan.amount - (loan.amountPaid || 0);
+            return sum + remaining;
+        }, 0);
+        
+        const memberInfo = `
+            <div style="font-size: 0.85rem; line-height: 1.4;">
+                <div>Contrib: ${memberContribution}</div>
+                <div>Outstanding: ${formatCurrency(totalOutstanding)}</div>
+            </div>
+        `;
+        
+        return `
+            <tr>
+                <td>${requestedAtStr}</td>
+                <td>${request.memberName || 'Unknown'}</td>
+                <td class="amount-warning">${formatCurrency(request.requestedAmount)}</td>
+                <td>${dueDateStr}</td>
+                <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;">${request.comments || '-'}</td>
+                <td>${memberInfo}</td>
+                <td>
+                    <button class="btn-small btn-success" onclick="reviewLoanRequest('${request.id}')">Review</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
 // Approve Contribution Request
 async function approveRequest(requestId) {
     const request = pendingRequests.find(r => r.id === requestId);
@@ -506,9 +660,180 @@ async function refreshDashboard() {
     await loadDashboardData();
 }
 
+// Cancel Loan Request (Member)
+async function cancelLoanRequest(requestId) {
+    const request = memberLoanRequests.find(r => r.id === requestId);
+    if (!request) {
+        alert('Request not found.');
+        return;
+    }
+    
+    const confirmed = confirm(`Cancel loan request for ${formatCurrency(request.requestedAmount)}?`);
+    
+    if (!confirmed) {
+        return;
+    }
+    
+    try {
+        await db.collection('loanRequests').doc(requestId).delete();
+        
+        await refreshDashboard();
+        showSuccessMessage('Loan request cancelled successfully.');
+    } catch (error) {
+        console.error('Error cancelling loan request:', error);
+        alert('Failed to cancel request. Please try again.');
+    }
+}
+
+// Review Loan Request (Admin) - Opens modal
+async function reviewLoanRequest(requestId) {
+    const request = pendingLoanRequests.find(r => r.id === requestId);
+    if (!request) {
+        alert('Request not found.');
+        return;
+    }
+    
+    // Call the function from admin.js
+    if (typeof window.showReviewLoanRequestModal === 'function') {
+        window.showReviewLoanRequestModal(request);
+    }
+}
+
+// Approve Loan Request (Admin)
+async function approveLoanRequest(requestId, approvedAmount, approvedDueDate, adminComments) {
+    try {
+        const currentUser = window.getCurrentUser();
+        
+        // Calculate current total amount and lending budget
+        let totalFund = 0;
+        transactions.forEach(txn => {
+            if (txn.type.startsWith('Contribution')) {
+                totalFund += txn.amount;
+            } else if (txn.type === 'Loan-Disbursement') {
+                totalFund -= Math.abs(txn.amount);
+            } else if (txn.type === 'Loan-Return' || txn.type === 'Loan-PartialReturn') {
+                totalFund += txn.amount;
+            } else if (txn.type === 'Expense-Actual') {
+                totalFund += txn.amount;
+            }
+        });
+        
+        const outstandingLoans = loans
+            .filter(loan => loan.status === 'Outstanding')
+            .reduce((sum, loan) => {
+                const amountPaid = loan.amountPaid || 0;
+                const remaining = loan.amount - amountPaid;
+                return sum + remaining;
+            }, 0);
+        
+        const totalAmount = totalFund + outstandingLoans;
+        const lendingBudget = totalAmount * 0.50;
+        
+        // Use transaction to ensure atomicity
+        await db.runTransaction(async (transaction) => {
+            const requestRef = db.collection('loanRequests').doc(requestId);
+            const requestDoc = await transaction.get(requestRef);
+            
+            if (!requestDoc.exists) {
+                throw new Error('Request not found');
+            }
+            
+            const requestData = requestDoc.data();
+            
+            if (requestData.status !== 'Pending') {
+                throw new Error('Request already processed');
+            }
+            
+            // Validate lending budget
+            if (approvedAmount > lendingBudget) {
+                throw new Error(`Exceeds available lending budget of ${formatCurrency(lendingBudget)}`);
+            }
+            
+            // Validate approved amount
+            if (approvedAmount < 100 || approvedAmount > 100000) {
+                throw new Error('Approved amount must be between ₹100 and ₹100,000');
+            }
+            
+            // Create loan
+            const loanRef = db.collection('loans').doc();
+            transaction.set(loanRef, {
+                borrowerId: requestData.memberId,
+                amount: approvedAmount,
+                borrowDate: firebase.firestore.FieldValue.serverTimestamp(),
+                dueDate: firebase.firestore.Timestamp.fromDate(new Date(approvedDueDate)),
+                status: 'Outstanding',
+                loanRequestId: requestId,
+                amountPaid: 0
+            });
+            
+            // Create transaction
+            const txnRef = db.collection('transactions').doc();
+            transaction.set(txnRef, {
+                memberId: requestData.memberId,
+                type: 'Loan-Disbursement',
+                amount: -Math.abs(approvedAmount),
+                date: firebase.firestore.FieldValue.serverTimestamp(),
+                loanId: loanRef.id,
+                comments: `Approved from request ${requestId}`
+            });
+            
+            // Update request
+            transaction.update(requestRef, {
+                status: 'Approved',
+                approvedAmount: approvedAmount,
+                approvedDueDate: firebase.firestore.Timestamp.fromDate(new Date(approvedDueDate)),
+                adminComments: adminComments || '',
+                reviewedBy: currentUser.id,
+                reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                loanId: loanRef.id,
+                transactionId: txnRef.id
+            });
+        });
+        
+        await refreshDashboard();
+        showSuccessMessage(`Loan approved and disbursed: ${formatCurrency(approvedAmount)}`);
+        return { success: true };
+    } catch (error) {
+        console.error('Error approving loan request:', error);
+        alert('Failed to approve loan: ' + error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+// Reject Loan Request (Admin)
+async function rejectLoanRequest(requestId, rejectionReason) {
+    if (!rejectionReason || rejectionReason.trim().length < 10) {
+        alert('Rejection reason must be at least 10 characters.');
+        return { success: false };
+    }
+    
+    try {
+        const currentUser = window.getCurrentUser();
+        
+        await db.collection('loanRequests').doc(requestId).update({
+            status: 'Rejected',
+            rejectionReason: rejectionReason.trim(),
+            reviewedBy: currentUser.id,
+            reviewedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        await refreshDashboard();
+        showSuccessMessage('Loan request rejected.');
+        return { success: true };
+    } catch (error) {
+        console.error('Error rejecting loan request:', error);
+        alert('Failed to reject request: ' + error.message);
+        return { success: false, error: error.message };
+    }
+}
+
 // Export functions
 window.loadDashboardData = loadDashboardData;
 window.refreshDashboard = refreshDashboard;
 window.members = members;
 window.approveRequest = approveRequest;
 window.rejectRequest = rejectRequest;
+window.cancelLoanRequest = cancelLoanRequest;
+window.reviewLoanRequest = reviewLoanRequest;
+window.approveLoanRequest = approveLoanRequest;
+window.rejectLoanRequest = rejectLoanRequest;

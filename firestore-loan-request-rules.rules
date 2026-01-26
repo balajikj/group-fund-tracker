@@ -1,0 +1,83 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to get user role
+    function getRole(userId) {
+      return get(/databases/$(database)/documents/members/$(userId)).data.role;
+    }
+    
+    // Helper function to check if user is Admin
+    function isAdmin() {
+      return request.auth != null && getRole(request.auth.uid) == 'Admin';
+    }
+    
+    // Members collection
+    match /members/{memberId} {
+      // Anyone authenticated can read all members
+      allow read: if request.auth != null;
+      
+      // Only Admin can create/update/delete members
+      allow write: if isAdmin();
+    }
+    
+    // Transactions collection
+    match /transactions/{transactionId} {
+      // Anyone authenticated can read transactions
+      allow read: if request.auth != null;
+      
+      // Only Admin can create/update transactions
+      allow write: if isAdmin();
+    }
+    
+    // Loans collection
+    match /loans/{loanId} {
+      // Anyone authenticated can read loans
+      allow read: if request.auth != null;
+      
+      // Only Admin can create/update loans
+      allow write: if isAdmin();
+    }
+    
+    // Contribution Requests collection
+    match /contributionRequests/{requestId} {
+      // Members can read their own requests
+      allow read: if request.auth != null && 
+                    (request.auth.uid == resource.data.memberId || isAdmin());
+      
+      // Members can create requests for themselves
+      allow create: if request.auth != null &&
+                      request.auth.uid == request.resource.data.memberId &&
+                      request.resource.data.status == 'Pending';
+      
+      // Only Admin can update (approve/reject) requests
+      allow update: if isAdmin() && resource.data.status == 'Pending';
+      
+      // Only Admin can delete requests
+      allow delete: if isAdmin();
+    }
+    
+    // Loan Requests collection (NEW)
+    match /loanRequests/{requestId} {
+      // Members can read their own requests, Admins can read all
+      allow read: if request.auth != null && 
+                    (request.auth.uid == resource.data.memberId || isAdmin());
+      
+      // Members can create loan requests for themselves
+      allow create: if request.auth != null &&
+                      request.auth.uid == request.resource.data.memberId &&
+                      request.resource.data.status == 'Pending' &&
+                      request.resource.data.requestedAmount >= 100 &&
+                      request.resource.data.requestedAmount <= 100000;
+      
+      // Members can delete their own pending requests
+      allow delete: if request.auth != null &&
+                      request.auth.uid == resource.data.memberId &&
+                      resource.data.status == 'Pending';
+      
+      // Only Admin can update (approve/reject) pending requests
+      allow update: if isAdmin() && 
+                      resource.data.status == 'Pending';
+    }
+  }
+}

@@ -238,19 +238,26 @@ function showDashboard() {
     const adminOnlyPanel = document.getElementById('adminOnlyPanel');
     const membersPanel = document.getElementById('membersPanel');
     const pendingRequestsPanel = document.getElementById('pendingRequestsPanel');
+    const myLoanRequestsPanel = document.getElementById('myLoanRequestsPanel');
+    const pendingLoanRequestsPanel = document.getElementById('pendingLoanRequestsPanel');
     
-    // All users can see pending requests, but only Admin can take actions
+    // All users can see pending contribution requests, but only Admin can take actions
     pendingRequestsPanel.classList.remove('hidden');
     
-    // Only Admin can see admin panels and member management
+    // All users can see their own loan requests
+    myLoanRequestsPanel.classList.remove('hidden');
+    
+    // Only Admin can see admin panels, member management, and pending loan requests
     if (isAdmin()) {
         adminPanel.classList.remove('hidden');
         membersPanel.classList.remove('hidden');
         adminOnlyPanel.classList.remove('hidden');
+        pendingLoanRequestsPanel.classList.remove('hidden');
     } else {
         adminPanel.classList.add('hidden');
         membersPanel.classList.add('hidden');
         adminOnlyPanel.classList.add('hidden');
+        pendingLoanRequestsPanel.classList.add('hidden');
     }
     
     // Load dashboard data
